@@ -1,33 +1,35 @@
 #!/usr/bin/env bash
-# Download Laya ONNX checkpoints (English + Multilingual) from Hugging Face.
-# Idempotent: skips already-downloaded files.
+# Download Laya ONNX checkpoint files via curl.
+# Bypasses the hf CLI / huggingface_hub SOCKS proxy issue.
 
 set -euo pipefail
 
-REPO_EN="inferenceprince/laya-onnx"
-REPO_ML="inferenceprince/laya-multilingual-onnx"  # may not exist yet
-TARGET_EN="models/laya-onnx-en"
-TARGET_ML="models/laya-onnx-multilingual"
+REPO_BASE="https://huggingface.co/inferenceprince/laya-onnx/resolve/main"
+TARGET="models/laya-onnx-en"
+
+mkdir -p "$TARGET/tokenizer"
 
 download() {
-    local repo="$1"
-    local target="$2"
-    if [ -d "$target" ] && [ -f "$target/model.onnx" ]; then
-        echo "✓ $target already exists, skipping"
+    local relpath="$1"
+    local outpath="$2"
+    if [ -f "$outpath" ] && [ "$(stat -f%z "$outpath" 2>/dev/null || stat -c%s "$outpath")" -gt 1000 ]; then
+        echo "✓ $outpath exists ($(du -h $outpath | cut -f1))"
         return 0
     fi
-    echo "↓ Downloading $repo → $target"
-    mkdir -p "$target"
-    if ! hf download "$repo" --local-dir "$target"; then
-        echo "✗ Failed to download $repo"
-        return 1
-    fi
+    echo "↓ $relpath → $outpath"
+    mkdir -p "$(dirname "$outpath")"
+    curl -L -m 1200 --retry 3 --connect-timeout 60 -o "$outpath" "${REPO_BASE}/${relpath}"
 }
 
-download "$REPO_EN" "$TARGET_EN"
+download "config.json"                            "$TARGET/config.json"
+download "model.onnx"                            "$TARGET/model.onnx"
+download "model.onnx.data"                       "$TARGET/model.onnx.data"
+download "rl_agent_config.json"                  "$TARGET/rl_agent_config.json"
+download "tokenizer/tokenizer.json"              "$TARGET/tokenizer/tokenizer.json"
+download "tokenizer/tokenizer_config.json"       "$TARGET/tokenizer/tokenizer_config.json"
+download "README.md"                             "$TARGET/README.md"
 
-if hf download "$REPO_ML" --local-dir "$TARGET_ML" 2>/dev/null; then
-    echo "✓ Multilingual checkpoint downloaded"
-else
-    echo "⚠ Multilingual checkpoint unavailable; fallback to English for non-Latin"
-fi
+echo ""
+echo "✓ Downloaded all files"
+ls -lh "$TARGET"
+ls -lh "$TARGET/tokenizer"
