@@ -18,4 +18,4 @@ datasets/raw/
 datasets/training/
 
 .DS_Store
-*.swp
+*.swpkaggle/upload/*.jsonl
