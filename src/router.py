@@ -116,11 +116,15 @@ class Router:
 
     def __init__(
         self,
-        english_dir: Path | str,
+        english_dir: Path | str | None = None,
         multilingual_dir: Path | str | None = None,
         providers: Optional[list[str]] = None,
     ):
-        self.english = OnnxLayaClient(english_dir, providers=providers)
+        if not english_dir and not multilingual_dir:
+            raise ValueError("at least one of english_dir / multilingual_dir is required")
+        self.english = None
+        if english_dir:
+            self.english = OnnxLayaClient(english_dir, providers=providers)
         self.multilingual = None
         if multilingual_dir and Path(multilingual_dir).exists():
             try:
@@ -131,11 +135,16 @@ class Router:
 
     def _pick(self, text: str) -> tuple[OnnxLayaClient, str, str]:
         model_tag = self.scripts.route(text)
-        if model_tag == "multilingual" and self.multilingual is not None:
-            return self.multilingual, model_tag, self.scripts.route_with_reason(text)[1]
         reason = self.scripts.route_with_reason(text)[1]
-        if model_tag == "multilingual":
-            reason += " — multilingual checkpoint unavailable, using English (known limitation)"
+        if model_tag == "multilingual" and self.multilingual is not None:
+            return self.multilingual, "multilingual", reason
+        if model_tag == "english" and self.english is not None:
+            return self.english, "english", reason
+        if self.multilingual is not None:
+            if model_tag == "english":
+                reason += " — English checkpoint unavailable, using multilingual"
+            return self.multilingual, "multilingual", reason
+        reason += " — multilingual checkpoint unavailable, using English (known limitation)"
         return self.english, "english", reason
 
     def predict(
@@ -152,15 +161,19 @@ class Router:
         if model is None:
             client, model_tag, reason = self._pick(state)
         else:
-            client = (
-                self.multilingual
-                if model == "multilingual" and self.multilingual
-                else self.english
-            )
-            model_tag = "multilingual" if (client is self.multilingual) else "english"
             reason = "explicit override"
-            if model == "multilingual" and self.multilingual is None:
-                reason += " — multilingual checkpoint unavailable, using English"
+            if model == "multilingual" and self.multilingual is not None:
+                client, model_tag = self.multilingual, "multilingual"
+            elif model == "english" and self.english is not None:
+                client, model_tag = self.english, "english"
+            elif self.multilingual is not None:
+                client, model_tag = self.multilingual, "multilingual"
+                reason += " — requested checkpoint unavailable, using multilingual"
+            elif self.english is not None:
+                client, model_tag = self.english, "english"
+                reason += " — requested checkpoint unavailable, using English"
+            else:
+                raise RuntimeError("no checkpoint available to serve this request")
         result = client.predict(state, questions, max_len=max_len, head_max_len=head_max_len)
         result["routing"] = {"model": model_tag, "reason": reason}
         return result

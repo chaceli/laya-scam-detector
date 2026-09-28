@@ -88,6 +88,41 @@ def router_with_ml():
 
 
 @pytest.mark.skipif(
+    not os.path.exists(f"{_multilingual_dir()}/model.onnx"),
+    reason="Multilingual ONNX checkpoint required",
+)
+class TestRouterMultilingualOnly:
+    """Deployment mode used by the Hugging Face Space: only the fine-tuned
+    multilingual checkpoint is shipped, so English must be optional."""
+
+    def test_router_constructs_without_english(self):
+        r = Router(english_dir=None, multilingual_dir=_multilingual_dir())
+        assert r.english is None
+        assert r.multilingual is not None
+
+    def test_requires_at_least_one_checkpoint(self):
+        with pytest.raises(ValueError):
+            Router(english_dir=None, multilingual_dir=None)
+
+    def test_latin_text_served_by_multilingual(self, schema):
+        r = Router(english_dir=None, multilingual_dir=_multilingual_dir())
+        out = r.predict("Hello world", schema)
+        assert out["routing"]["model"] == "multilingual"
+        assert "English checkpoint unavailable" in out["routing"]["reason"]
+
+    def test_chinese_text_served_by_multilingual(self, schema):
+        r = Router(english_dir=None, multilingual_dir=_multilingual_dir())
+        out = r.predict("您好世界", schema)
+        assert out["routing"]["model"] == "multilingual"
+
+    def test_explicit_english_request_falls_back(self, schema):
+        r = Router(english_dir=None, multilingual_dir=_multilingual_dir())
+        out = r.predict("Hello", schema, model="english")
+        assert out["routing"]["model"] == "multilingual"
+        assert "requested checkpoint unavailable" in out["routing"]["reason"]
+
+
+@pytest.mark.skipif(
     not (os.path.exists("models/laya-onnx-en/model.onnx")
          and os.path.exists(f"{_multilingual_dir()}/model.onnx")),
     reason="Both English and multilingual ONNX checkpoints required",
