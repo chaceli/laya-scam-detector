@@ -1,7 +1,12 @@
 """Unicode-script detection and language routing for Laya checkpoints."""
 from __future__ import annotations
 
+import sys
 import unicodedata
+from pathlib import Path
+from typing import Optional
+
+from src.laya_onnx import OnnxLayaClient
 
 
 _NON_LATIN_SCRIPT_PREFIXES = (
@@ -87,3 +92,68 @@ class ScriptRouter:
         if script == LATIN_SCRIPT:
             return "english", f"script={script}"
         return "multilingual", f"script={script} (non-Latin)"
+
+
+class Router:
+    """High-level router combining English + optional Multilingual clients.
+
+    In this deployment only the English checkpoint is available
+    (laya-multilingual-onnx does not exist on Hugging Face as of 2026-09).
+    For non-Latin text we still call English — known limitation
+    (model is 'confidently wrong' on non-Latin scripts per upstream docs).
+    """
+
+    def __init__(
+        self,
+        english_dir: Path | str,
+        multilingual_dir: Path | str | None = None,
+        providers: Optional[list[str]] = None,
+    ):
+        self.english = OnnxLayaClient(english_dir, providers=providers)
+        self.multilingual = None
+        if multilingual_dir and Path(multilingual_dir).exists():
+            try:
+                self.multilingual = OnnxLayaClient(multilingual_dir, providers=providers)
+            except Exception as e:
+                print(f"⚠ Multilingual checkpoint failed to load: {e}", file=sys.stderr)
+        self.scripts = ScriptRouter()
+
+    def _pick(self, text: str) -> tuple[OnnxLayaClient, str, str]:
+        model_tag = self.scripts.route(text)
+        if model_tag == "multilingual" and self.multilingual is not None:
+            return self.multilingual, model_tag, self.scripts.route_with_reason(text)[1]
+        # Fallback to English for non-Latin (documented limitation)
+        reason = self.scripts.route_with_reason(text)[1]
+        if model_tag == "multilingual":
+            reason += " — multilingual checkpoint unavailable, using English (known limitation)"
+        return self.english, "english", reason
+
+    def predict(
+        self,
+        state: str,
+        questions: dict,
+        max_len: Optional[int] = None,
+        head_max_len: Optional[int] = None,
+        model: Optional[str] = None,
+    ) -> dict:
+        if isinstance(state, dict):
+            import json
+            state = json.dumps(state, ensure_ascii=False)
+        if model is None:
+            client, model_tag, reason = self._pick(state)
+        else:
+            client = (
+                self.multilingual
+                if model == "multilingual" and self.multilingual
+                else self.english
+            )
+            model_tag = client is self.multilingual and "multilingual" or "english"
+            reason = "explicit override"
+            if model == "multilingual" and self.multilingual is None:
+                reason += " — multilingual checkpoint unavailable, using English"
+        result = client.predict(state, questions, max_len=max_len, head_max_len=head_max_len)
+        result["routing"] = {"model": model_tag, "reason": reason}
+        return result
+
+    def route(self, text: str) -> str:
+        return self.scripts.route(text)
