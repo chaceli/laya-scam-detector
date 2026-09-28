@@ -1,0 +1,31 @@
+{
+  "is_scam": {
+    "type": "noul",
+    "instructions": "Is this message a scam, fraud, phishing, or social engineering attempt?"
+  },
+  "risk_level": {
+    "type": "score",
+    "instructions": "How high is the risk that this is malicious?",
+    "criteria": [
+      "1 - clearly benign (normal message)",
+      "2 - mildly suspicious (some red flags)",
+      "3 - likely scam (multiple fraud signals)",
+      "4 - high confidence scam (typical fraud pattern)",
+      "5 - definitive fraud (obvious scam)"
+    ]
+  },
+  "scam_category": {
+    "type": "choice",
+    "instructions": "What category of scam does this most resemble?",
+    "criteria": {
+      "delivery_fraud": "fake courier, refund, or lost package",
+      "phishing": "fake links, credential theft, account verification",
+      "romance_scam": "pig butchering, emotional manipulation, long game",
+      "investment_scam": "fake returns, crypto, stock tips",
+      "impersonation": "fake police, government, bank, customer service",
+      "lottery_scam": "fake prize, lucky draw, congratulations",
+      "loan_scam": "fake loan offers, predatory lending",
+      "benign": "legitimate message"
+    }
+  }
+}
