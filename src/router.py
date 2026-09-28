@@ -1,4 +1,9 @@
-"""Unicode-script detection and language routing for Laya checkpoints."""
+"""Unicode-script detection and language routing for Laya checkpoints.
+
+Supports dual-checkpoint deployment:
+- english (ModernBERT-large, 421M) — Latin script
+- multilingual (mmBERT-base, 322M) — CJK/Hebrew/Arabic/Devanagari etc.
+"""
 from __future__ import annotations
 
 import sys
@@ -95,12 +100,18 @@ class ScriptRouter:
 
 
 class Router:
-    """High-level router combining English + optional Multilingual clients.
+    """High-level router combining English + Multilingual clients.
 
-    In this deployment only the English checkpoint is available
-    (laya-multilingual-onnx does not exist on Hugging Face as of 2026-09).
-    For non-Latin text we still call English — known limitation
-    (model is 'confidently wrong' on non-Latin scripts per upstream docs).
+    Routing policy:
+    - Latin script (English, Spanish, French, etc.) → English checkpoint
+    - Non-Latin script (CJK, Hebrew, Arabic, etc.) → Multilingual checkpoint
+    - If multilingual checkpoint is missing, falls back to English (with warning)
+
+    Per the research:
+    - Laya English checkpoint: zero-shot 0.342 typed-decisions; ModernBERT
+      backbone shreds CJK characters (Khmer 0.000 acc @ 0.952 conf).
+    - Laya multilingual checkpoint (mmBERT-base, 256k vocab): native
+      multilingual support, ~2x faster than English checkpoint.
     """
 
     def __init__(
@@ -122,7 +133,6 @@ class Router:
         model_tag = self.scripts.route(text)
         if model_tag == "multilingual" and self.multilingual is not None:
             return self.multilingual, model_tag, self.scripts.route_with_reason(text)[1]
-        # Fallback to English for non-Latin (documented limitation)
         reason = self.scripts.route_with_reason(text)[1]
         if model_tag == "multilingual":
             reason += " — multilingual checkpoint unavailable, using English (known limitation)"
@@ -147,7 +157,7 @@ class Router:
                 if model == "multilingual" and self.multilingual
                 else self.english
             )
-            model_tag = client is self.multilingual and "multilingual" or "english"
+            model_tag = "multilingual" if (client is self.multilingual) else "english"
             reason = "explicit override"
             if model == "multilingual" and self.multilingual is None:
                 reason += " — multilingual checkpoint unavailable, using English"
