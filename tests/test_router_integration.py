@@ -68,3 +68,40 @@ class TestRouterIntegration:
         )
         # multilingual not loaded; falls back to english
         assert result["routing"]["model"] == "english"
+
+
+@pytest.fixture(scope="module")
+def router_with_ml():
+    """Router with both English and multilingual checkpoints loaded (when available)."""
+    return Router(
+        english_dir="models/laya-onnx-en",
+        multilingual_dir="models/laya-onnx-multilingual",
+    )
+
+
+@pytest.mark.skipif(
+    not (os.path.exists("models/laya-onnx-en/model.onnx")
+         and os.path.exists("models/laya-onnx-multilingual/model.onnx")),
+    reason="Both English and multilingual ONNX checkpoints required",
+)
+class TestRouterWithMultilingual:
+    def test_both_clients_loaded(self, router_with_ml):
+        assert router_with_ml.english is not None
+        assert router_with_ml.multilingual is not None
+
+    def test_chinese_routes_to_multilingual(self, router_with_ml, schema):
+        result = router_with_ml.predict("您好世界", schema)
+        assert result["routing"]["model"] == "multilingual"
+        assert "non-Latin" in result["routing"]["reason"]
+
+    def test_hebrew_routes_to_multilingual(self, router_with_ml, schema):
+        result = router_with_ml.predict("שלום", schema)
+        assert result["routing"]["model"] == "multilingual"
+
+    def test_english_routes_to_english(self, router_with_ml, schema):
+        result = router_with_ml.predict("Hello world", schema)
+        assert result["routing"]["model"] == "english"
+
+    def test_explicit_multilingual_overrides_script(self, router_with_ml, schema):
+        result = router_with_ml.predict("Hello", schema, model="multilingual")
+        assert result["routing"]["model"] == "multilingual"
