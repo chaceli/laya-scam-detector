@@ -82,3 +82,34 @@ class TestPredict:
         })
         assert r.status_code == 200, r.text
         assert "is_scam" in r.json()["answers"]
+
+
+class TestValidation:
+    def test_empty_text_422(self, client):
+        r = client.post("/api/predict", json={"text": "", "primitives": ["noul"]})
+        assert r.status_code == 422
+
+    def test_empty_primitives_422(self, client):
+        r = client.post("/api/predict", json={"text": "hi", "primitives": []})
+        assert r.status_code == 422
+
+    def test_unknown_primitive_422(self, client):
+        r = client.post("/api/predict", json={"text": "hi", "primitives": ["bogus"]})
+        assert r.status_code == 422
+
+    def test_unknown_model_422(self, client):
+        r = client.post("/api/predict", json={
+            "text": "hi", "primitives": ["noul"], "model": "bogus",
+        })
+        assert r.status_code == 422
+
+
+class TestDefaults:
+    def test_defaults_returns_three_questions(self, client):
+        r = client.get("/api/defaults")
+        assert r.status_code == 200
+        q = r.json()["questions"]
+        assert set(q.keys()) == {"is_scam", "risk_level", "scam_category"}
+        assert q["is_scam"]["type"] == "noul"
+        assert q["risk_level"]["type"] == "score"
+        assert q["scam_category"]["type"] == "choice"
