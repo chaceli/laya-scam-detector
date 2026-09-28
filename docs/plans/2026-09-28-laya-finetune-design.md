@@ -39,32 +39,37 @@
 
 ## 3. 端到端流程
 
+> **修订（2026-09-28）**：训练从 Kaggle 2×T4 改为**本地 Mac M4 Pro (MPS)**。
+> 技术验证确认本地可行：模型 1.31GB 内存、LoRA 1.15M 可训参数、前向+反向正常。
+> Kaggle 路径（`kaggle/`）保留作备选。详见 §13。
+
 ```
 [本地] Phase A: 数据准备
-  scripts/fetch_datasets.py    → 下载 6 个公开数据集
+  scripts/fetch_datasets.py    → 下载 5 个公开数据集
   scripts/build_dataset.py     → 统一 schema + 13 类映射 + 切分
-  datasets/training/{train,val,test}.jsonl (~30k 样本)
+  scripts/build_kaggle_subset.py → 30k 分层子集
 
-[Kaggle 2×T4] Phase B: LoRA 微调 (4-5h)
-  kaggle/laya_finetune_multilingual.ipynb
-  - 加载 laya-multilingual (mmBERT-base)
-  - 注入 LoRA r=8 to attn layers
-  - RLCD 训练 4 epochs
-  - 拟合每类型温度
-  - 推 adapter 到私有 HF Hub
+[本地 MPS] Phase B: LoRA 微调 (~45min-2h)
+  scripts/train_local_lora.py
+  - 加载 laya-multilingual (mmBERT-base) via laya SDK
+  - 注入 LoRA r=8 (target_modules=["Wqkv","Wo"])
+  - 预编码数据集（tokenization 移出训练循环）
+  - 交叉熵（log score，严格 proper scoring rule）训练
+  - 每 epoch 验证 is_scam + category 准确率
+  - 保存合并后 model_state.pt
 
-[本地] Phase C: 合并 + ONNX 导出
-  scripts/merge_and_export_onnx.py
-  - 下载 base + adapter
-  - 合并 LoRA 到 base
-  - 导出 ONNX + 复制 tokenizer/rl_agent_config
-  - 验证 logit diff < 1e-5 vs PyTorch
-  - 推送 ONNX 到 HF Hub (laya-onnx-multilingual-finetuned)
+[本地] Phase C: ONNX 导出
+  scripts/export_local_onnx.py
+  - 加载 base + model_state.pt
+  - 导出 ONNX（匹配 OnnxLayaClient 契约）
+  - 验证 logit diff < 1e-3 vs PyTorch
+  - 输出 models/laya-onnx-multilingual-finetuned/
 
 [本地] Phase D: 评估与部署
   - 改造 src/router.py 双 checkpoint 路由
   - 更新 schemas/scam.json 到 13 类
-  - main.py --eval 在三个测试集上跑
+  - main.py --eval 在手写集 + 公开集 + 训练 holdout 上跑
+  - scripts/check_acceptance.py 验收
   - 对比 reports/eval-*.md 改进表格
   - README 更新最终评估数字
 ```

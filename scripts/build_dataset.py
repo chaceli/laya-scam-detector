@@ -49,7 +49,7 @@ def stable_id(text: str, source: str) -> str:
 FGRC_RISK_MAP = {
     "无风险": "benign",
     "虚假网络投资理财类": "investment_scam",
-    "冒充电商物流客服类": "phishing",
+    "冒充电商物流客服类": "delivery_fraud",
     "虚假购物、服务类": "phishing",
     "冒充军警购物类诈骗": "impersonation",
     "冒充公检法及政府机关类": "impersonation",
@@ -199,6 +199,33 @@ def load_fbs_sms() -> list[dict]:
 
 
 # ─────────────────────────────────────────────────────────────────
+# Synthetic seed set (crypto_scam + marketing, otherwise 0 samples)
+# ─────────────────────────────────────────────────────────────────
+def load_synthetic_extra() -> list[dict]:
+    src = Path("datasets/synthetic_extra.jsonl")
+    if not src.exists():
+        src = RAW_DIR / "synthetic_extra.jsonl"
+    if not src.exists():
+        return []
+    out = []
+    with src.open() as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            r = json.loads(line)
+            out.append({
+                "text": r["text"],
+                "is_scam": int(r["is_scam"]),
+                "risk": int(r.get("risk", 4)),
+                "category": normalize_label(r["category"]),
+                "language": r.get("language", "zh"),
+                "source": "synthetic",
+            })
+    return out
+
+
+# ─────────────────────────────────────────────────────────────────
 # UCI SMS Spam (ucirvine/sms_spam) - already in datasets/public.jsonl
 # ─────────────────────────────────────────────────────────────────
 def load_uc_irvine() -> list[dict]:
@@ -273,6 +300,7 @@ def main() -> int:
         load_ealvaradob,
         load_fbs_sms,
         load_uc_irvine,
+        load_synthetic_extra,
     ):
         try:
             rows = loader()
@@ -292,8 +320,15 @@ def main() -> int:
         cleaned.append(r)
     print(f"After dedup: {len(cleaned):,} rows")
 
-    train, val, test = split_dataset(cleaned)
-    print(f"Split: train={len(train):,} val={len(val):,} test={len(test):,}")
+    # Synthetic rows stay in train only: they exist to give crypto_scam and
+    # marketing a non-zero signal and must not inflate val/test metrics.
+    real = [r for r in cleaned if r["source"] != "synthetic"]
+    synth = [r for r in cleaned if r["source"] == "synthetic"]
+
+    train, val, test = split_dataset(real)
+    train.extend(synth)
+    print(f"Split: train={len(train):,} (incl {len(synth)} synthetic) "
+          f"val={len(val):,} test={len(test):,}")
 
     train = balance_train(train)
     print(f"Train after balance: {len(train):,}")
