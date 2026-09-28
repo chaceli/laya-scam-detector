@@ -68,6 +68,68 @@ python main.py --eval --input datasets/eval.jsonl --output reports/
 python main.py --eval --input datasets/public.jsonl --output reports/
 ```
 
+## Phase 2: Fine-tuned multilingual model (in progress)
+
+The zero-shot baseline struggles with Chinese (accuracy 0.840 vs 0.923 English)
+and the original 8-class schema. We fine-tune `convaiinnovations/laya-multilingual`
+(mmBERT-base, 322M, 100+ languages) with LoRA on multi-source scam data.
+
+### Training setup
+
+| Item | Value |
+|---|---|
+| Base model | `convaiinnovations/laya-multilingual` (mmBERT-base, 322M) |
+| Method | LoRA r=8 on attention projections (~3.5M trainable, ~1%) |
+| Datasets | FGRC-SCD (62k ZH), scamshield (37k EN), ealvaradob (78k EN), FBS_SMS (14k ZH), UCI SMS Spam (400) |
+| Training samples | 30k balanced (stratified subset for Kaggle) |
+| Hardware | Kaggle free 2×T4 GPU |
+| Expected runtime | ~1-2 hours |
+
+### 13-class schema
+
+Extended from 8 to 13 categories: `benign`, `phishing`, `crypto_scam`,
+`investment_scam`, `lottery_scam`, `job_scam`, `loan_scam`, `impersonation`,
+`romance_scam`, `delivery_fraud`, `marketing`, `adult_content`, `spam_general`.
+
+### Baseline (pre-fine-tuning, English checkpoint + 13-class schema)
+
+| Metric | Handwritten (38) | Public SMS (400) | Target |
+|---|---|---|---|
+| is_scam accuracy | 0.868 | 0.905 | — |
+| is_scam recall | 1.000 | 0.950 | >= 0.95 |
+| Chinese is_scam accuracy | 0.840 | — | **>= 0.90** |
+| 13-class accuracy | 0.500 | 0.647 | **>= 0.70** |
+
+The two bold targets are what fine-tuning must improve.
+
+### Reproduce
+
+```bash
+# Phase 1: data prep
+python scripts/fetch_datasets.py       # download 5 public datasets (~800MB)
+python scripts/build_dataset.py         # build datasets/training/*.jsonl
+python scripts/build_kaggle_subset.py  # 30k subset for Kaggle
+
+# Phase 4: train on Kaggle (manual)
+# See kaggle/README.md for step-by-step instructions
+
+# Phase 5: merge + export ONNX (after Kaggle)
+LAYA_ADAPTER_REPO=<user>/laya-multilingual-scam-adapter \
+  python scripts/merge_and_export_onnx.py
+
+# Phase 6: evaluate
+python main.py --eval --input datasets/eval.jsonl --output reports/
+python scripts/check_acceptance.py
+```
+
 ## Status
 
-All phases complete. 70 tests passing. Outstanding zero-shot results.
+- Phase 1 (data prep + 13-class schema): complete
+- Phase 2 (Router dual-checkpoint): complete
+- Phase 3 (preflight tests): complete
+- Phase 4 (Kaggle notebook): built, awaiting manual Kaggle run (see `kaggle/README.md`)
+- Phase 5 (merge + ONNX export): scripts ready, awaiting Kaggle output
+- Phase 6 (eval + integration): complete
+
+Tests: 93 passing, 11 skipped (multilingual tests skip until Phase 5 produces
+the ONNX bundle).
