@@ -18,14 +18,19 @@
     "type": "choice",
     "instructions": "What category of scam does this most resemble?",
     "criteria": {
-      "delivery_fraud": "fake courier, refund, or lost package",
-      "phishing": "fake links, credential theft, account verification",
-      "romance_scam": "pig butchering, emotional manipulation, long game",
-      "investment_scam": "fake returns, crypto, stock tips",
+      "benign": "normal legitimate message (no fraud signal)",
+      "phishing": "phishing link, credential theft, account verification",
+      "crypto_scam": "cryptocurrency fraud, fake coin offering",
+      "investment_scam": "fake returns, stock tips, Ponzi scheme",
+      "lottery_scam": "fake prize, lucky draw, congratulations winner",
+      "job_scam": "fake job offer, upfront fee, mule recruitment",
+      "loan_scam": "fake loan offer, predatory lending",
       "impersonation": "fake police, government, bank, customer service",
-      "lottery_scam": "fake prize, lucky draw, congratulations",
-      "loan_scam": "fake loan offers, predatory lending",
-      "benign": "legitimate message"
+      "romance_scam": "pig butchering, emotional manipulation, long game",
+      "delivery_fraud": "fake courier, refund, lost package",
+      "marketing": "legitimate but aggressive sales / promotions",
+      "adult_content": "adult, escort, sexual services",
+      "spam_general": "other unsolicited junk / noise"
     }
   }
 }
