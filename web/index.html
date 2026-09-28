@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Laya 反诈检测 Playground</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>🛡 Laya 反诈检测 Playground</h1>
+    <p class="sub">微调模型 · ONNX 本地推理 · 中英双语</p>
+    <div id="health-badge" class="badge badge-loading">加载中…</div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>① 输入文本</h2>
+      <textarea id="text" rows="4"
+        placeholder="粘贴或输入要检测的文本（中文/英文）…"></textarea>
+      <div id="samples" class="samples"></div>
+    </section>
+
+    <section class="card">
+      <h2>② 配置</h2>
+      <div class="row">
+        <span class="row-label">输出方式</span>
+        <label><input type="checkbox" class="primitive" value="noul" checked /> 是否诈骗 (noul)</label>
+        <label><input type="checkbox" class="primitive" value="score" checked /> 风险评分 (score)</label>
+        <label><input type="checkbox" class="primitive" value="choice" checked /> 诈骗类别 (choice)</label>
+      </div>
+      <div class="row">
+        <span class="row-label">模型</span>
+        <label><input type="radio" name="model" value="auto" checked /> 自动路由</label>
+        <label><input type="radio" name="model" value="english" /> 英文 base</label>
+        <label><input type="radio" name="model" value="multilingual" /> 微调多语版</label>
+      </div>
+      <details id="advanced">
+        <summary>高级设置（可编辑问题与选项）</summary>
+        <div id="advanced-body"></div>
+      </details>
+      <button id="run">开始分析</button>
+      <span id="run-hint" class="hint"></span>
+    </section>
+
+    <section id="results"></section>
+    <div id="meta" class="meta"></div>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
