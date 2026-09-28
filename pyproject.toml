@@ -13,6 +13,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-cov", "ruff>=0.6"]
 train = [
+    "laya>=0.3.21",
     "peft>=0.10",
     "trl>=0.8",
     "accelerate>=0.27",
