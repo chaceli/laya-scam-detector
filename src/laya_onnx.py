@@ -92,13 +92,39 @@ class OnnxLayaClient:
         )
         cfg_path = self.checkpoint_dir / "rl_agent_config.json"
         self.config = json.loads(cfg_path.read_text()) if cfg_path.exists() else {}
-        self.cls_id = self.tokenizer.token_to_id("[CLS]")
-        self.sep_id = self.tokenizer.token_to_id("[SEP]")
-        self.mask_id = self.tokenizer.token_to_id("[MASK]")
-        if any(t is None for t in (self.cls_id, self.sep_id, self.mask_id)):
-            raise ValueError("Tokenizer missing required special tokens [CLS]/[SEP]/[MASK]")
+        self.cls_id, self.sep_id, self.mask_id, self.pad_id = self._resolve_special_tokens()
         self.default_max_len = int(self.config.get("max_len", 512))
         self.default_head_max_len = int(self.config.get("head_max_len", 192))
+
+    def _resolve_special_tokens(self) -> tuple[int, int, int, int]:
+        """Resolve special token ids across both checkpoint families.
+
+        The English ONNX export uses BERT-style names ([CLS]/[SEP]/[MASK]).
+        mmBERT (multilingual) uses <bos>/<eos>/<mask>. Prefer the literal
+        names, then fall back to tokenizer_config.json, then to the tokenizer's
+        own special-token slots.
+        """
+        def by_name(name: str) -> Optional[int]:
+            return self.tokenizer.token_to_id(name) if name else None
+
+        tok_cfg_path = self.checkpoint_dir / "tokenizer" / "tokenizer_config.json"
+        tok_cfg = json.loads(tok_cfg_path.read_text()) if tok_cfg_path.exists() else {}
+
+        def pick(explicit: str, cfg_key: str) -> Optional[int]:
+            return by_name(explicit) or by_name(tok_cfg.get(cfg_key, ""))
+
+        cls_id = pick("[CLS]", "cls_token")
+        sep_id = pick("[SEP]", "sep_token")
+        mask_id = pick("[MASK]", "mask_token")
+        pad_id = pick("[PAD]", "pad_token")
+        if pad_id is None:
+            pad_id = 0
+        if any(t is None for t in (cls_id, sep_id, mask_id)):
+            raise ValueError(
+                f"Tokenizer missing special tokens; looked for [CLS]/[SEP]/[MASK] "
+                f"and tokenizer_config.json keys. Got cls={cls_id} sep={sep_id} mask={mask_id}"
+            )
+        return cls_id, sep_id, mask_id, pad_id
 
     def _build_input(
         self, state: str, question_text: str, options: dict[str, str],

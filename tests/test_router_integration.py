@@ -70,18 +70,26 @@ class TestRouterIntegration:
         assert result["routing"]["model"] == "english"
 
 
+def _multilingual_dir() -> str:
+    """Prefer the fine-tuned bundle; fall back to the base multilingual dir."""
+    finetuned = "models/laya-onnx-multilingual-finetuned"
+    if os.path.exists(f"{finetuned}/model.onnx"):
+        return finetuned
+    return "models/laya-onnx-multilingual"
+
+
 @pytest.fixture(scope="module")
 def router_with_ml():
     """Router with both English and multilingual checkpoints loaded (when available)."""
     return Router(
         english_dir="models/laya-onnx-en",
-        multilingual_dir="models/laya-onnx-multilingual",
+        multilingual_dir=_multilingual_dir(),
     )
 
 
 @pytest.mark.skipif(
     not (os.path.exists("models/laya-onnx-en/model.onnx")
-         and os.path.exists("models/laya-onnx-multilingual/model.onnx")),
+         and os.path.exists(f"{_multilingual_dir()}/model.onnx")),
     reason="Both English and multilingual ONNX checkpoints required",
 )
 class TestRouterWithMultilingual:

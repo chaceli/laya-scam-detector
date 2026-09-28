@@ -9,6 +9,14 @@ from pathlib import Path
 from src.router import Router, ScriptRouter
 
 
+def _default_multilingual_dir() -> str:
+    """Prefer the fine-tuned multilingual bundle when it has been exported."""
+    finetuned = Path("models/laya-onnx-multilingual-finetuned")
+    if (finetuned / "model.onnx").exists():
+        return str(finetuned)
+    return "models/laya-onnx-multilingual"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         prog="laya-scam-detector",
@@ -24,7 +32,11 @@ def main() -> int:
     parser.add_argument("--output", default="reports/",
                         help="Output directory for reports (default: reports/)")
     parser.add_argument("--english-dir", default="models/laya-onnx-en")
-    parser.add_argument("--multilingual-dir", default="models/laya-onnx-multilingual")
+    parser.add_argument(
+        "--multilingual-dir",
+        default=_default_multilingual_dir(),
+        help="multilingual checkpoint dir (prefers the fine-tuned bundle when present)",
+    )
 
     args = parser.parse_args()
 

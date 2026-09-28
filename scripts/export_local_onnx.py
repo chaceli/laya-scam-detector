@@ -94,11 +94,11 @@ def main() -> int:
         input_names=["input_ids", "attention_mask", "marker_pos", "marker_mask", "qtype"],
         output_names=["logits"],
         dynamic_axes={
-            "input_ids": {0: "batch"},
-            "attention_mask": {0: "batch"},
-            "marker_pos": {0: "batch"},
-            "marker_mask": {0: "batch"},
-            "logits": {0: "batch"},
+            "input_ids": {0: "batch", 1: "seq_len"},
+            "attention_mask": {0: "batch", 1: "seq_len"},
+            "marker_pos": {0: "batch", 1: "n_opts"},
+            "marker_mask": {0: "batch", 1: "n_opts"},
+            "logits": {0: "batch", 1: "n_opts"},
         },
         opset_version=14,
     )
