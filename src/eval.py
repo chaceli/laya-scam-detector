@@ -1,8 +1,12 @@
-"""Batch evaluation over JSONL test sets."""
+"""Batch evaluation over JSONL test sets (13-class schema)."""
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from schemas.scam_categories import normalize_label
 
 from src.router import Router
 
@@ -41,12 +45,15 @@ def run_evaluation(router: Router, input_jsonl: str, schema: dict) -> list[dict]
             except Exception as e:
                 pred = {"error": str(e), "answers": {}}
             answers = pred.get("answers", {})
+            expected_cat = rec.get("expected_category")
+            if expected_cat is not None:
+                expected_cat = normalize_label(expected_cat)
             enriched = {
                 "id": rec.get("id"),
                 "type": rec.get("type"),
                 "language": rec.get("language"),
                 "expected_risk": rec.get("expected_risk"),
-                "expected_category": rec.get("expected_category"),
+                "expected_category": expected_cat,
                 "expected_label": rec.get("expected_label"),
                 "source": rec.get("source"),
                 "state_preview": state[:120],

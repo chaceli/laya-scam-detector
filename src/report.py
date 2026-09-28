@@ -92,8 +92,20 @@ def _category_table(results: list[dict]) -> str:
             counter[(e, p)] += 1
     if not counter:
         return "_No category data._"
-    expected_cats = sorted({e for e, _ in counter.keys()})
-    predicted_cats = sorted({p for _, p in counter.keys()})
+    # Use canonical 13-class ordering when available; fall back to alphabetical
+    try:
+        import sys
+        from pathlib import Path as _Path
+        sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+        from schemas.scam_categories import CANONICAL_CATEGORIES
+        present = {e for e, _ in counter.keys()}
+        expected_cats = [c for c in CANONICAL_CATEGORIES if c in present]
+        predicted_cats = [c for c in CANONICAL_CATEGORIES if any(p == c for _, p in counter.keys())]
+        if not expected_cats:
+            expected_cats = sorted(present)
+    except Exception:
+        expected_cats = sorted({e for e, _ in counter.keys()})
+        predicted_cats = sorted({p for _, p in counter.keys()})
     lines = ["| expected ↓ / predicted → | " + " | ".join(predicted_cats) + " |",
              "|" + "---|" * (len(predicted_cats) + 1)]
     for e in expected_cats:
