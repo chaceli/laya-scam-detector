@@ -7,9 +7,9 @@ venv/
 .env
 
 models/
-reports/
 *.onnx
 *.safetensors
+# Note: reports/ is tracked — evaluation reports are evidence
 
 .DS_Store
 *.swp
