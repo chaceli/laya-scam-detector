@@ -68,6 +68,30 @@ python main.py --eval --input datasets/eval.jsonl --output reports/
 python main.py --eval --input datasets/public.jsonl --output reports/
 ```
 
+### Web Playground
+
+Interactive UI over the fine-tuned model — paste text, pick which of the
+three Laya primitives to run, and inspect verdicts, probability
+distributions, latency, and routing.
+
+```bash
+pip install -e ".[serve]"
+PYTHONPATH=. python -m uvicorn server.app:app --port 8000
+# open http://127.0.0.1:8000
+```
+
+Features:
+- Input text (Chinese/English) with 4 one-click preset samples
+- Pick any subset of the three primitives: `noul` (scam yes/no),
+  `score` (1-5 risk), `choice` (13 scam categories)
+- Switch model: auto-route / English base / fine-tuned multilingual
+- "Advanced" panel to edit instructions and criteria inline
+- Results per primitive: verdict, full probability distribution bars,
+  latency, and the resolved checkpoint
+
+API: `GET /api/health`, `GET /api/samples`, `GET /api/defaults`,
+`POST /api/predict`.
+
 ## Phase 2: Fine-tuned multilingual model (complete)
 
 The zero-shot baseline struggled with Chinese (accuracy 0.840 vs 0.923 English)
