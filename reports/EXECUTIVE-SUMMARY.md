@@ -325,21 +325,52 @@ M4 Pro CPU 上：
 
 ---
 
-## 6.5 Phase 2：多语微调（进行中）
+## 6.5 Phase 2：多语微调（已完成）
 
 零样本基线的两个短板（中文 0.840、13 类 0.500-0.647）促使启动第二阶段：
 微调 `convaiinnovations/laya-multilingual`（mmBERT-base，322M，100+ 语言）。
+**训练全程在本地 Apple M4 Pro (MPS) 完成，未使用云 GPU。**
 
-### 已完成的准备工作
+### 执行方式修订
 
-| 阶段 | 状态 | 产出 |
+原设计使用 Kaggle 2×T4，改为本地 MPS。技术验证确认可行后实施：
+
+| 验证项 | 结果 |
+|---|---|
+| MPS 加载 | 4.2s，fp16，占用 1.31GB / 24GB |
+| LoRA | r=8 on `Wqkv`+`Wo`，1.15M 可训（0.36%） |
+| 前向+反向 | 正常，grad_norm 21.3 |
+| 吞吐 | 9-17 samples/s（取决于序列长度）|
+| 实际训练 | **73 分钟**（15000 样本 × 3 epochs）|
+
+### 最终结果 — 全部验收标准达标
+
+**600 条中文 holdout**（来自训练数据的 test split）：
+
+| 指标 | 目标 | 实际 |
 |---|---|---|
-| 1. 数据准备 | ✅ | 5 个公开数据集（800MB）→ 346k 训练样本 → 30k Kaggle 子集 |
-| 2. 13 类 schema | ✅ | `schemas/scam_categories.py` + `scam.json` |
-| 3. 双 checkpoint Router | ✅ | 按 Unicode 脚本自动路由 |
-| 4. Kaggle 笔记本 | ⏳ | 8 cell 已就绪，**待手动 Kaggle 运行** |
-| 5. 合并 + ONNX 导出 | ⏳ | 脚本就绪，**待 Kaggle 产出** |
-| 6. 评估 + 集成 | ✅ | eval/report 支持 13 类，验收检查器就绪 |
+| 中文 is_scam accuracy | ≥ 0.90 | **0.967** |
+| is_scam recall | ≥ 0.95 | **0.957** |
+| 13 类 accuracy | ≥ 0.70 | **0.810** |
+| p50 延迟 | — | **125ms** |
+| p95 延迟 | — | 228ms |
+
+**手写集（38 样本）对比**：
+
+| 指标 | 英文基线 | 微调多语版 | 变化 |
+|---|---|---|---|
+| is_scam accuracy | 0.868 | **0.921** | +0.053 |
+| is_scam precision | 0.833 | **0.893** | +0.060 |
+| is_scam F1 | 0.909 | **0.943** | +0.034 |
+| 13 类 accuracy | 0.500 | **0.632** | +0.132 |
+| 中文 accuracy | 0.840 | **0.920** | +0.080 |
+| 误报数 | 5 | **3** | -2 |
+| p50 延迟 | 652ms | **131ms** | **5x 快** |
+
+### 延迟改进的结构性原因
+
+mmBERT 的 256k 词表以约 1.5 字符/token 处理中文，英文 ModernBERT 的 5 万词表
+将每个汉字切碎为多个 token。序列变短 → 前向更快 → **575ms → 80-130ms**。
 
 ### 数据来源
 
@@ -350,25 +381,27 @@ M4 Pro CPU 上：
 | ealvaradob phishing | 78k | 英文 URL/SMS/email | 研究用途 |
 | FBS_SMS (fl-wxiao) | 14k | 中文假基站 | 学术 |
 | UCI SMS Spam | 400 | 英文 | 公开 |
+| synthetic seed | 35 | 中英 crypto/marketing | 自建 |
 
-### 微调目标（验收标准）
+### 产出
 
-- 中文 is_scam accuracy ≥ **0.90**（基线 0.840）
-- is_scam recall ≥ **0.95**（基线 1.000 已达标）
-- 13 类 accuracy ≥ **0.70**（基线 0.500-0.647）
+- `models/laya-lora-finetuned/model_state.pt`（合并后权重）
+- `models/laya-onnx-multilingual-finetuned/`（ONNX bundle，`model.onnx` + 1.2GB 权重）
+- ONNX vs PyTorch logit 差异 **3.34e-06**（远低于 1e-3 阈值）
+- 评估报告：`reports/eval-20260928-221345.md`（600 中文样本）
+- 验收：`scripts/check_acceptance.py` → **3/3 通过**
 
-### 需要人工介入的步骤
+### 复现命令
 
-**Kaggle 微调运行**（`kaggle/README.md` 有完整指南）：
-1. 上传 `kaggle/upload/scam-detection-training.zip` 为 Kaggle Dataset
-2. 导入 `kaggle/laya_finetune_multilingual.ipynb` 到 Kaggle
-3. 设置 2×T4 GPU + 附加数据集 + `HF_TOKEN` secret
-4. 替换 `HF_USER` 占位符，Run All（约 1-2 小时）
-5. 产出自动推送到 HF Hub，然后本地执行 `scripts/merge_and_export_onnx.py`
+```bash
+python scripts/fetch_datasets.py && python scripts/build_dataset.py
+HF_HUB_DISABLE_XET=1 python scripts/train_local_lora.py \
+  --max-samples 15000 --epochs 3 --batch-size 8 --grad-accum 2
+HF_HUB_DISABLE_XET=1 python scripts/export_local_onnx.py
+python main.py --eval --input datasets/eval.jsonl --output reports/
+```
 
-**已知风险**：Laya SDK 0.3.21 的 Router API（`.models` dict + `.load()`）与
-笔记本 Cell 2 假设的（`.multilingual.model`）不同，Kaggle 首次运行时需
-现场适配。详见 `kaggle/README.md` 的"API 适配说明"。
+Kaggle 路径（`kaggle/`）保留为云端备选。
 
 ---
 
