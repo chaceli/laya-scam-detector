@@ -325,6 +325,53 @@ M4 Pro CPU 上：
 
 ---
 
+## 6.5 Phase 2：多语微调（进行中）
+
+零样本基线的两个短板（中文 0.840、13 类 0.500-0.647）促使启动第二阶段：
+微调 `convaiinnovations/laya-multilingual`（mmBERT-base，322M，100+ 语言）。
+
+### 已完成的准备工作
+
+| 阶段 | 状态 | 产出 |
+|---|---|---|
+| 1. 数据准备 | ✅ | 5 个公开数据集（800MB）→ 346k 训练样本 → 30k Kaggle 子集 |
+| 2. 13 类 schema | ✅ | `schemas/scam_categories.py` + `scam.json` |
+| 3. 双 checkpoint Router | ✅ | 按 Unicode 脚本自动路由 |
+| 4. Kaggle 笔记本 | ⏳ | 8 cell 已就绪，**待手动 Kaggle 运行** |
+| 5. 合并 + ONNX 导出 | ⏳ | 脚本就绪，**待 Kaggle 产出** |
+| 6. 评估 + 集成 | ✅ | eval/report 支持 13 类，验收检查器就绪 |
+
+### 数据来源
+
+| 数据集 | 规模 | 语言 | 许可证 |
+|---|---|---|---|
+| FGRC-SCD (sms + dialog) | 62k | 中文电信诈骗 | MIT |
+| scamshield (Him1304) | 37k | 英文+招聘诈骗 | MIT |
+| ealvaradob phishing | 78k | 英文 URL/SMS/email | 研究用途 |
+| FBS_SMS (fl-wxiao) | 14k | 中文假基站 | 学术 |
+| UCI SMS Spam | 400 | 英文 | 公开 |
+
+### 微调目标（验收标准）
+
+- 中文 is_scam accuracy ≥ **0.90**（基线 0.840）
+- is_scam recall ≥ **0.95**（基线 1.000 已达标）
+- 13 类 accuracy ≥ **0.70**（基线 0.500-0.647）
+
+### 需要人工介入的步骤
+
+**Kaggle 微调运行**（`kaggle/README.md` 有完整指南）：
+1. 上传 `kaggle/upload/scam-detection-training.zip` 为 Kaggle Dataset
+2. 导入 `kaggle/laya_finetune_multilingual.ipynb` 到 Kaggle
+3. 设置 2×T4 GPU + 附加数据集 + `HF_TOKEN` secret
+4. 替换 `HF_USER` 占位符，Run All（约 1-2 小时）
+5. 产出自动推送到 HF Hub，然后本地执行 `scripts/merge_and_export_onnx.py`
+
+**已知风险**：Laya SDK 0.3.21 的 Router API（`.models` dict + `.load()`）与
+笔记本 Cell 2 假设的（`.multilingual.model`）不同，Kaggle 首次运行时需
+现场适配。详见 `kaggle/README.md` 的"API 适配说明"。
+
+---
+
 ## 7. 附录
 
 ### 7.1 仓库结构
