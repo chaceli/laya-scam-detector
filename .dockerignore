@@ -1,0 +1,27 @@
+.git
+.gitignore
+.omo
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+*.egg-info
+
+# Large local artifacts — the model is fetched from a GitHub Release
+models/
+datasets/
+reports/
+research/
+docs/
+kaggle/
+scripts/
+tests/
+notebooks/
+
+# Dev-only files
+test_interactive.py
+test_verbose.py
+
+.DS_Store
+*.swp

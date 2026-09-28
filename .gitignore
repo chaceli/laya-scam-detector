@@ -22,3 +22,6 @@ datasets/training/
 
 # Loose Kaggle upload exports (the zip is tracked)
 kaggle/upload/*.jsonl
+
+# Release artifacts (models shipped via GitHub Releases)
+dist/
