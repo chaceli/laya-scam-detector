@@ -1,0 +1,25 @@
+[project]
+name = "laya-scam-detector"
+version = "0.1.0"
+description = "Local Laya deployment for scam-phrase risk evaluation via ONNX Runtime"
+requires-python = ">=3.10"
+dependencies = [
+    "onnxruntime>=1.18",
+    "tokenizers>=0.15",
+    "numpy>=1.24",
+    "huggingface_hub>=0.24",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-cov", "ruff>=0.6"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --strict-markers"
