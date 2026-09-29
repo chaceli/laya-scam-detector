@@ -107,6 +107,12 @@ synthetic seed for the two rarest classes.
 
 fp32 → fp16 max probability difference measured at **0.00001**.
 
+An int8 dynamic-quantized variant also exists under `int8/` (370 MB). It is
+accurate with native ONNX Runtime, but **do not use it in the browser**:
+onnxruntime-web's WASM int8 kernels diverge from native ORT (P(scam) 0.194
+vs 0.016 on identical input and weights). The in-browser app uses the fp16
+root checkpoint instead.
+
 ## Usage
 
 This is a *decision* model: it does not chat. Feed it the exact input contract
