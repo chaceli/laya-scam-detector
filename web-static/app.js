@@ -294,12 +294,22 @@ async function loadModel() {
 
   setStatus("加载分词器…");
   setProgress(0.04);
-  // Tokenizer is bundled in the Space repo at /tokenizer/ (HF Hub layout).
-  // Load via a relative path: transformers.js skips the local-fetch branch
-  // for http(s) paths entirely and then rejects them as invalid model ids
-  // (see utils/hub.js getModelFile). A relative path fetches from the page
-  // origin, which is where the bundled files live.
-  const tok = await AutoTokenizer.from_pretrained("./tokenizer");
+  // transformers.js's from_pretrained() cannot load a tokenizer that is a
+  // plain file on the same origin: its path parser rejects anything that is
+  // not a user/repo model id or a directory with tokenizer.json inside, and
+  // its internal fetch fails on the Space's Xet 302 redirects. Load the
+  // gzip'd tokenizer.json ourselves (5 MB vs 34 MB) and construct the
+  // tokenizer directly from the parsed JSON — verified to work in-browser.
+  const [tokCfg, tokJson] = await Promise.all([
+    fetch("./tokenizer/tokenizer_config.json").then((r) => r.json()),
+    fetch("./tokenizer/tokenizer.json.gz")
+      .then((r) => r.arrayBuffer())
+      .then((buf) => new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"))).text())
+      .then((text) => JSON.parse(text)),
+  ]);
+  const tokClsName = (tokCfg.tokenizer_class || "PreTrainedTokenizer").replace(/Fast$/, "");
+  const tokCls = AutoTokenizer.TOKENIZER_CLASS_MAPPING[tokClsName] || AutoTokenizer.TOKENIZER_CLASS_MAPPING["PreTrainedTokenizer"];
+  const tok = new tokCls(tokJson, tokCfg);
   // The mmBERT tokenizer.json declares
   // PreTokenizer=Metaspace(prepend_scheme="always"), which the Rust tokenizers
   // library honours but transformers.js does not (it warns "Unknown tokenizer
