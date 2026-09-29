@@ -294,7 +294,12 @@ async function loadModel() {
 
   setStatus("加载分词器…");
   setProgress(0.04);
-  const tok = await AutoTokenizer.from_pretrained(`${MODEL_BASE}/tokenizer`);
+  // Tokenizer is bundled in the Space repo at /tokenizer/ (HF Hub layout).
+  // Load via a relative path: transformers.js skips the local-fetch branch
+  // for http(s) paths entirely and then rejects them as invalid model ids
+  // (see utils/hub.js getModelFile). A relative path fetches from the page
+  // origin, which is where the bundled files live.
+  const tok = await AutoTokenizer.from_pretrained("./tokenizer");
   // The mmBERT tokenizer.json declares
   // PreTokenizer=Metaspace(prepend_scheme="always"), which the Rust tokenizers
   // library honours but transformers.js does not (it warns "Unknown tokenizer
