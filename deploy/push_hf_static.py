@@ -22,12 +22,39 @@ SPACE_README = REPO_ROOT / "deploy" / "hf-static-README.md"
 INCLUDE = ["index.html", "app.js", "style.css"]
 
 
+def pack(zip_path: Path) -> int:
+    """Bundle the Space files for drag-and-drop upload via the HF web UI."""
+    import zipfile
+
+    for name in INCLUDE:
+        if not (WEB_DIR / name).exists():
+            print(f"✗ missing web-static/{name}")
+            return 1
+    zip_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name in INCLUDE:
+            zf.write(WEB_DIR / name, name)
+        zf.write(SPACE_README, "README.md")
+    size_kb = zip_path.stat().st_size / 1024
+    print(f"✓ {zip_path}  ({size_kb:.1f} KB, {len(INCLUDE) + 1} files)")
+    print("  Upload at https://huggingface.co/new-space (SDK: Static)")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--repo-id", required=True)
+    ap.add_argument("--repo-id", help="e.g. <user>/laya-scam-detector")
     ap.add_argument("--private", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--pack", metavar="ZIP",
+                    help="write a drag-and-drop zip for the HF web UI and exit (no token needed)")
     args = ap.parse_args()
+
+    if args.pack:
+        return pack(Path(args.pack))
+    if not args.repo_id:
+        print("✗ --repo-id is required unless --pack is used")
+        return 2
 
     for name in INCLUDE:
         if not (WEB_DIR / name).exists():
