@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Laya 反诈检测 Playground</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header>
+    <h1>🛡 Laya 反诈检测 Playground</h1>
+    <p class="sub">微调模型 · 浏览器内 ONNX 推理 · 文本不上传服务器</p>
+    <div id="health-badge" class="badge badge-loading">加载中…</div>
+  </header>
+
+  <main>
+    <section class="card" id="load-panel">
+      <h2>模型加载</h2>
+      <div class="load-track"><div id="load-bar" class="load-fill"></div></div>
+      <p id="load-status" class="hint">准备中…</p>
+      <p class="hint">首次访问需下载约 681 MB 的 fp16 模型；浏览器会缓存，之后秒开。</p>
+    </section>
+
+    <section class="card">
+      <h2>① 输入文本</h2>
+      <textarea id="text" rows="4"
+        placeholder="粘贴或输入要检测的文本（中文/英文）…"></textarea>
+      <div id="samples" class="samples"></div>
+    </section>
+
+    <section class="card">
+      <h2>② 配置</h2>
+      <div class="row">
+        <span class="row-label">输出方式</span>
+        <label><input type="checkbox" class="primitive" value="noul" checked /> 是否诈骗 (noul)</label>
+        <label><input type="checkbox" class="primitive" value="score" checked /> 风险评分 (score)</label>
+        <label><input type="checkbox" class="primitive" value="choice" checked /> 诈骗类别 (choice)</label>
+      </div>
+      <div class="row">
+        <span class="row-label">模型</span>
+        <span class="hint">微调多语版 · fp16（浏览器内运行）</span>
+      </div>
+      <details id="advanced">
+        <summary>高级设置（可编辑问题与选项）</summary>
+        <div id="advanced-body"></div>
+      </details>
+      <button id="run">开始分析</button>
+      <span id="run-hint" class="hint"></span>
+    </section>
+
+    <section id="results"></section>
+    <div id="meta" class="meta"></div>
+
+    <footer class="foot">
+      <p>模型：<a href="https://huggingface.co/LiChace/laya-scam-detector-onnx" target="_blank" rel="noopener">LiChace/laya-scam-detector-onnx</a>
+         · 源码：<a href="https://github.com/chaceli/laya-scam-detector" target="_blank" rel="noopener">GitHub</a></p>
+      <p class="hint">仅供研究与测试。模型判断可能有误，概率需按自有数据校准，不可作为唯一决策依据。</p>
+    </footer>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
