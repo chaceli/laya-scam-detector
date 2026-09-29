@@ -20,15 +20,16 @@ WEB_DIR = REPO_ROOT / "web-static"
 SPACE_README = REPO_ROOT / "deploy" / "hf-static-README.md"
 
 INCLUDE = ["index.html", "app.js", "style.css"]
-TOKENIZER_SRC = REPO_ROOT / "models" / "laya-onnx-multilingual-finetuned-fp16" / "tokenizer"
-INCLUDE_OPTIONAL = ["tokenizer/tokenizer.json", "tokenizer/tokenizer_config.json"]
+TOKENIZER_GZ = REPO_ROOT / "web-static" / "tokenizer.json.gz"
+TOKENIZER_CONFIG_SRC = REPO_ROOT / "models" / "laya-onnx-multilingual-finetuned-fp16" / "tokenizer" / "tokenizer_config.json"
+INCLUDE_OPTIONAL = ["tokenizer/tokenizer.json.gz", "tokenizer/tokenizer_config.json"]
 
 
 def pack(zip_path: Path) -> int:
     """Bundle the Space files for drag-and-drop upload via the HF web UI.
 
-    Includes the tokenizer subdir (~34 MB) so the Space doesn't depend on
-    transformers.js's model-id string parsing for the tokenizer.
+    Includes the gzip'd tokenizer (~5 MB) so the browser loads it from the
+    page origin instead of transformers.js parsing a remote model id.
     """
     import zipfile
 
@@ -36,8 +37,8 @@ def pack(zip_path: Path) -> int:
         if not (WEB_DIR / name).exists():
             print(f"✗ missing web-static/{name}")
             return 1
-    if not TOKENIZER_SRC.is_dir():
-        print(f"✗ tokenizer dir missing: {TOKENIZER_SRC}")
+    if not TOKENIZER_GZ.exists():
+        print(f"✗ missing {TOKENIZER_GZ}")
         return 1
     zip_path.parent.mkdir(parents=True, exist_ok=True)
     files = list(INCLUDE) + ["README.md"] + INCLUDE_OPTIONAL
@@ -45,9 +46,8 @@ def pack(zip_path: Path) -> int:
         for name in INCLUDE:
             zf.write(WEB_DIR / name, name)
         zf.write(SPACE_README, "README.md")
-        for rel in INCLUDE_OPTIONAL:
-            src = TOKENIZER_SRC / Path(rel).name
-            zf.write(src, rel)
+        zf.write(TOKENIZER_GZ, "tokenizer/tokenizer.json.gz")
+        zf.write(TOKENIZER_CONFIG_SRC, "tokenizer/tokenizer_config.json")
     size_kb = zip_path.stat().st_size / 1024
     print(f"✓ {zip_path}  ({size_kb:.1f} KB, {len(files)} files)")
     print("  Upload at https://huggingface.co/new-space (SDK: Static)")
@@ -73,8 +73,8 @@ def main() -> int:
         if not (WEB_DIR / name).exists():
             print(f"✗ missing web-static/{name}")
             return 1
-    if not TOKENIZER_SRC.is_dir():
-        print(f"✗ tokenizer dir missing: {TOKENIZER_SRC}")
+    if not TOKENIZER_GZ.exists():
+        print(f"✗ missing {TOKENIZER_GZ}")
         return 1
 
     tmp = Path(tempfile.mkdtemp(prefix="laya-static-"))
@@ -88,12 +88,12 @@ def main() -> int:
         print(f"  + {name}  ({size/1024:.1f} KB)")
     shutil.copy(SPACE_README, tmp / "README.md")
     print(f"  + README.md (static Space card) ({len(SPACE_README.read_text())/1024:.1f} KB)")
-    # Bundle the tokenizer so the Space doesn't depend on transformers.js
-    # parsing a remote URL as a model id.
-    for rel in INCLUDE_OPTIONAL:
-        src = TOKENIZER_SRC / Path(rel).name
+    # Bundle the gzip'd tokenizer so the browser loads it from the page
+    # origin instead of transformers.js parsing a remote model id.
+    for rel, src in [("tokenizer/tokenizer.json.gz", TOKENIZER_GZ),
+                     ("tokenizer/tokenizer_config.json", TOKENIZER_CONFIG_SRC)]:
         if not src.exists():
-            print(f"  ⚠ missing tokenizer/{Path(rel).name}")
+            print(f"  ⚠ missing {src}")
             continue
         dst = tmp / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
