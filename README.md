@@ -1,8 +1,23 @@
 # Laya Scam-Phrase Detector
 
-Local ONNX Runtime deployment of the Laya decision model for scam-phrase risk evaluation. No PyTorch dependency.
+Local ONNX Runtime deployment + fine-tuning of the Laya decision model for
+Chinese/English scam-phrase risk detection. No PyTorch dependency at inference.
 
 See `research/laya-jev-research-report.md` for background on Laya vs Jev.
+
+## Published model
+
+| Artifact | Where |
+|---|---|
+| Fine-tuned fp16 ONNX model (681 MB) | [🤗 LiChace/laya-scam-detector-onnx](https://huggingface.co/LiChace/laya-scam-detector-onnx) |
+| Model tarball | [GitHub Release v1.0.0](https://github.com/chaceli/laya-scam-detector/releases/tag/v1.0.0) |
+| Training write-up | [`reports/FINETUNE-PRACTICE-SUMMARY.md`](reports/FINETUNE-PRACTICE-SUMMARY.md) |
+
+```bash
+# pull the model straight from the Hub
+hf download LiChace/laya-scam-detector-onnx --local-dir models/laya-onnx-multilingual-finetuned-fp16
+python main.py --predict "您好，我是XX快递客服…" --questions schemas/scam.json
+```
 
 ## Results summary (zero-shot, no fine-tuning)
 
