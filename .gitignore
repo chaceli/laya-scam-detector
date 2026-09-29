@@ -25,3 +25,6 @@ kaggle/upload/*.jsonl
 
 # Release artifacts (models shipped via GitHub Releases)
 dist/
+
+# OhMyOpenCode session state
+.omo/
