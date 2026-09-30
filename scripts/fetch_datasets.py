@@ -13,6 +13,7 @@ Skipped due to 401 (gated, requires HF auth):
 - vichetkao/Scam_Message_9_Language
 - M-Arjun/SpamShield-Datasets
 """
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -48,6 +49,15 @@ DATASETS = [
 
 FBS_SMS_GIT_URL = "https://github.com/fl-wxiao/FBS_SMS_Dataset.git"
 FBS_SMS_TARGET = RAW_DIR / "fbs_sms"
+
+CCL2023_GIT_URL = "https://github.com/GJSeason/CCL2023-FCC.git"
+CHIFRAUD_GIT_URL = "https://github.com/xuemingxxx/ChiFraud.git"
+TELE_ANTIFRAUD_TREE_API = "https://huggingface.co/api/datasets/JimmyMa99/TeleAntiFraud/tree/main"
+TELE_ANTIFRAUD_BASE = "https://huggingface.co/datasets/JimmyMa99/TeleAntiFraud/resolve/main"
+
+TELE_FILES: list[str] = []  # Task 4 探测后回填，例如 ["data/train.jsonl"]
+
+PHISHING_EMAIL_DATASET = "naserabdullahalam/phishing-email-dataset"
 
 
 def curl_download(url: str, target: Path) -> None:
@@ -94,6 +104,34 @@ def main() -> int:
 
     print(f"\n[{FBS_SMS_TARGET.name}]")
     git_clone(FBS_SMS_GIT_URL, FBS_SMS_TARGET)
+
+    print("\n[ccl2023]")
+    git_clone(CCL2023_GIT_URL, RAW_DIR / "ccl2023")
+
+    print("\n[chifraud]")
+    git_clone(CHIFRAUD_GIT_URL, RAW_DIR / "chifraud")
+
+    print("\n[teleantifraud]")
+    if TELE_FILES:
+        for relpath in TELE_FILES:
+            curl_download(f"{TELE_ANTIFRAUD_BASE}/{relpath}",
+                          RAW_DIR / "teleantifraud" / Path(relpath).name)
+    else:
+        print("  ! TELE_FILES 未配置。运行: curl -s " + TELE_ANTIFRAUD_TREE_API)
+        print("    从返回 JSON 中挑数据文件路径填入 TELE_FILES 后重跑。")
+
+    print("\n[phishing_email]")
+    try:
+        import kagglehub
+        cache = kagglehub.dataset_download(PHISHING_EMAIL_DATASET)
+        target = RAW_DIR / "phishing_email"
+        target.mkdir(parents=True, exist_ok=True)
+        for f in Path(cache).glob("*"):
+            if f.is_file():
+                shutil.copy(f, target / f.name)
+        print("  ✓ kagglehub -> datasets/raw/phishing_email")
+    except Exception as e:
+        print(f"  ✗ kagglehub 跳过（凭据/网络）: {e}")
 
     # Extract FGRC-SCD zips
     for z in ["fgrc_scd_sms", "fgrc_scd_dialog"]:
