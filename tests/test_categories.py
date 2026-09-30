@@ -15,6 +15,9 @@ class TestCanonicalCategories:
     def test_exactly_14_categories(self):
         assert len(CANONICAL_CATEGORIES) == 14
 
+    def test_benign_is_first(self):
+        assert CANONICAL_CATEGORIES[0] == "benign"
+
     def test_all_unique(self):
         assert len(set(CANONICAL_CATEGORIES)) == 14
 

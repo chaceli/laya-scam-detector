@@ -32,9 +32,13 @@ class TestONNXExport:
 
     def test_categories_json_has_13_classes(self):
         from schemas.scam_categories import CANONICAL_CATEGORIES
+        # v1 bundle is frozen at the pre-v2 13-class taxonomy. The live
+        # canonical list moved to 14 (rebate_scam) for the v2 plan; the v2
+        # bundle lands in models/laya-onnx-multilingual-finetuned-v2.
+        v1_categories = [c for c in CANONICAL_CATEGORIES if c != "rebate_scam"]
         data = json.loads((ONNX_DIR / "categories.json").read_text())
-        assert data["categories"] == CANONICAL_CATEGORIES
-        assert len(data["categories"]) == len(CANONICAL_CATEGORIES)
+        assert data["categories"] == v1_categories
+        assert len(data["categories"]) == len(v1_categories)
 
     def test_onnx_loads(self):
         import onnxruntime as ort
