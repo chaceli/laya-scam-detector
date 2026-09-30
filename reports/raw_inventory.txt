@@ -1,0 +1,28 @@
+[ccl2023]
+[chifraud]
+  dataset/ChiFraud_t2022.csv (23.8 MB)
+    header: ['Label_id\tText']
+  dataset/ChiFraud_t2023.csv (27.8 MB)
+    header: ['Label_id\tText']
+  dataset/ChiFraud_train.csv (47.4 MB)
+    header: ['Label_id\tText']
+  dataset/class.txt (0.0 MB)
+  dataset/metadata.json (0.0 MB)
+    first record keys: ['@type', 'description', 'distribution', 'license', 'name', 'recordSet', 'url']
+    sample: {'@type': 'sc:Dataset', 'name': 'ChiFraud', 'description': 'ChiFraud is the first anonymous public Chinese fraud-text detection dataset, with extensive expert annotations 59,106 fraudulent texts and 3
+[teleantifraud] MISSING (fetch first)
+[phishing_email]
+  CEAS_08.csv (67.9 MB)
+    header: ['sender', 'receiver', 'date', 'subject', 'body', 'label', 'urls']
+  Enron.csv (45.6 MB)
+    header: ['subject', 'body', 'label']
+  Ling.csv (9.3 MB)
+    header: ['subject', 'body', 'label']
+  Nazario.csv (7.8 MB)
+    header: ['sender', 'receiver', 'date', 'subject', 'body', 'urls', 'label']
+  Nigerian_Fraud.csv (9.2 MB)
+    header: ['sender', 'receiver', 'date', 'subject', 'body', 'urls', 'label']
+  SpamAssasin.csv (14.9 MB)
+    header: ['sender', 'receiver', 'date', 'subject', 'body', 'label', 'urls']
+  phishing_email.csv (106.6 MB)
+    header: ['text_combined', 'label']
