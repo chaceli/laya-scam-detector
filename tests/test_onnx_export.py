@@ -34,7 +34,7 @@ class TestONNXExport:
         from schemas.scam_categories import CANONICAL_CATEGORIES
         data = json.loads((ONNX_DIR / "categories.json").read_text())
         assert data["categories"] == CANONICAL_CATEGORIES
-        assert len(data["categories"]) == 13
+        assert len(data["categories"]) == len(CANONICAL_CATEGORIES)
 
     def test_onnx_loads(self):
         import onnxruntime as ort

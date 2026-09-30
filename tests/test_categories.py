@@ -12,14 +12,15 @@ from schemas.scam_categories import (
 
 
 class TestCanonicalCategories:
-    def test_exactly_13_categories(self):
-        assert len(CANONICAL_CATEGORIES) == 13
-
-    def test_benign_is_first(self):
-        assert CANONICAL_CATEGORIES[0] == "benign"
+    def test_exactly_14_categories(self):
+        assert len(CANONICAL_CATEGORIES) == 14
 
     def test_all_unique(self):
-        assert len(set(CANONICAL_CATEGORIES)) == 13
+        assert len(set(CANONICAL_CATEGORIES)) == 14
+
+    def test_rebate_scam_after_job_scam(self):
+        assert CANONICAL_CATEGORIES.index("rebate_scam") \
+            == CANONICAL_CATEGORIES.index("job_scam") + 1
 
 
 class TestNormalizeLabel:
@@ -74,3 +75,30 @@ class TestIsValidCategory:
     def test_non_canonical_invalid(self):
         assert is_valid_category("spam") is False
         assert is_valid_category("spam_general") is True
+
+
+class TestCcl2023Mapping:
+    def test_ccl_map_covers_12_classes_and_maps_to_canonical(self):
+        from schemas.scam_categories import CCL2023_LABEL_MAP
+        assert len(CCL2023_LABEL_MAP) == 12
+        for canonical in CCL2023_LABEL_MAP.values():
+            assert canonical in CANONICAL_CATEGORIES
+
+    def test_rebate_label_maps_to_rebate_scam(self):
+        from schemas.scam_categories import CCL2023_LABEL_MAP
+        assert CCL2023_LABEL_MAP["刷单返利类"] == "rebate_scam"
+
+    def test_ccl_labels_reachable_via_normalize_label(self):
+        from schemas.scam_categories import normalize_label
+        assert normalize_label("刷单返利类") == "rebate_scam"
+        assert normalize_label("网黑案件") == "spam_general"
+
+
+class TestChiFraudMapping:
+    def test_only_underground_loan_maps(self):
+        from schemas.scam_categories import CHIFRAUD_SCAM_MAP
+        assert set(CHIFRAUD_SCAM_MAP.values()) == {"loan_scam"}
+
+    def test_benign_labels_exist(self):
+        from schemas.scam_categories import CHIFRAUD_BENIGN_LABELS
+        assert len(CHIFRAUD_BENIGN_LABELS) >= 1

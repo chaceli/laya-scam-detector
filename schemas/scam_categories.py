@@ -27,6 +27,7 @@ CANONICAL_CATEGORIES = [
     "investment_scam",
     "lottery_scam",
     "job_scam",
+    "rebate_scam",       # v2: 刷单返利（公安口径发案量第一）
     "loan_scam",
     "impersonation",
     "romance_scam",
@@ -114,3 +115,35 @@ def index_to_label(idx: int) -> str:
     if not 0 <= idx < len(CANONICAL_CATEGORIES):
         raise ValueError(f"index out of range: {idx}")
     return CANONICAL_CATEGORIES[idx]
+
+
+# CCL2023-FCC 严格映射（loader 逐条断言，未覆盖即报错，不走 spam_general 兜底）
+CCL2023_LABEL_MAP: dict[str, str] = {
+    "刷单返利类": "rebate_scam",
+    "贷款代办信用卡类": "loan_scam",
+    "虚假征信类": "loan_scam",
+    "虚假投资理财类": "investment_scam",
+    "虚假购物服务类": "phishing",
+    "冒充客服类": "impersonation",
+    "冒充公检法类": "impersonation",
+    "冒充领导熟人类": "impersonation",
+    "网络婚恋交友类": "romance_scam",
+    "机票退改签类": "impersonation",
+    "网络赌博类": "spam_general",
+    "网黑案件": "spam_general",
+}
+
+# 单一来源注入：normalize_label 经 CATEGORY_MAP 消费 CCL 12 类（用户裁定 2026-09-30）
+CATEGORY_MAP.update(CCL2023_LABEL_MAP)
+
+# ChiFraud（灰产供给侧视角）：仅地下贷款可映射，其余在 loader 中显式丢弃
+CHIFRAUD_SCAM_MAP: dict[str, str] = {
+    "地下贷款": "loan_scam",
+    "地下贷款类": "loan_scam",
+}
+CHIFRAUD_BENIGN_LABELS: frozenset[str] = frozenset(
+    {"正常", "benign", "normal", "合法", "非诈骗"})
+
+# TeleAntiFraud-28k：正常通话标签候选（Task 4 探测后按实际修正）
+TELE_NORMAL_LABELS: frozenset[str] = frozenset(
+    {"normal", "benign", "正常", "非诈骗", "ham"})
