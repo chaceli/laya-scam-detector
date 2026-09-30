@@ -60,6 +60,11 @@ class TestCcl2023Mapping:
         from schemas.scam_categories import CCL2023_LABEL_MAP
         assert CCL2023_LABEL_MAP["刷单返利类"] == "rebate_scam"
 
+    def test_ccl_labels_reachable_via_normalize_label(self):
+        from schemas.scam_categories import normalize_label
+        assert normalize_label("刷单返利类") == "rebate_scam"
+        assert normalize_label("网黑案件") == "spam_general"
+
 
 class TestChiFraudMapping:
     def test_only_underground_loan_maps(self):
@@ -84,23 +89,7 @@ Expected: FAIL（14 断言、CCL/ChiFraud 映射类全部失败）
     "rebate_scam",       # v2: 刷单返利（公安口径发案量第一）
 ```
 
-(b) `CATEGORY_MAP` 的 `# Handwritten` 段之前插入 CCL 12 类（与 (c) 完全一致）：
-
-```python
-    # CCL2023-FCC (电信网络诈骗案件分类评测, 12 类)
-    "刷单返利类": "rebate_scam",
-    "贷款代办信用卡类": "loan_scam",
-    "虚假征信类": "loan_scam",
-    "虚假投资理财类": "investment_scam",
-    "虚假购物服务类": "phishing",
-    "冒充客服类": "impersonation",
-    "冒充公检法类": "impersonation",
-    "冒充领导熟人类": "impersonation",
-    "网络婚恋交友类": "romance_scam",
-    "机票退改签类": "impersonation",
-    "网络赌博类": "spam_general",
-    "网黑案件": "spam_general",
-```
+(b) `CATEGORY_MAP` **保持不动**（用户裁定 2026-09-30：CCL 12 类采用**单一来源注入**，消除与 (c) 的逐字重复 —— CCL 条目由 (c) 末尾的 `CATEGORY_MAP.update(CCL2023_LABEL_MAP)` 注入，`normalize_label` 经由 CATEGORY_MAP 消费）。
 
 (c) 文件末尾（`index_to_label` 之后）新增：
 
@@ -121,6 +110,9 @@ CCL2023_LABEL_MAP: dict[str, str] = {
     "网黑案件": "spam_general",
 }
 
+# 单一来源注入：normalize_label 经 CATEGORY_MAP 消费 CCL 12 类（用户裁定 2026-09-30）
+CATEGORY_MAP.update(CCL2023_LABEL_MAP)
+
 # ChiFraud（灰产供给侧视角）：仅地下贷款可映射，其余在 loader 中显式丢弃
 CHIFRAUD_SCAM_MAP: dict[str, str] = {
     "地下贷款": "loan_scam",
@@ -134,7 +126,7 @@ TELE_NORMAL_LABELS: frozenset[str] = frozenset(
     {"normal", "benign", "正常", "非诈骗", "ham"})
 ```
 
-> CCL 标签的**精确字符串**以 Task 4 探测为准。若真实标签有差异（如「虚假投资理财」无「类」字），同步改 `CCL2023_LABEL_MAP`、`CATEGORY_MAP`、`tests/test_categories.py` 三处（`test_ccl_map_covers_12_classes_and_maps_to_canonical` 强制 12 条全覆盖）。
+> CCL 标签的**精确字符串**以 Task 4 探测为准。若真实标签有差异（如「虚假投资理财」无「类」字），同步改 `CCL2023_LABEL_MAP` 与 `tests/test_categories.py` 两处（`CATEGORY_MAP` 由 update 自动同步；`test_ccl_map_covers_12_classes_and_maps_to_canonical` 强制 12 条全覆盖）。
 
 - [ ] **Step 4: 运行测试确认通过**
 
@@ -394,7 +386,7 @@ Run: `python scripts/inspect_raw.py 2>&1 | tee reports/raw_inventory.txt`
 
 - [ ] **Step 5: 按探测结论回填常量**
 
-若标签字符串与 Task 1 假设不同：同步修改 `schemas/scam_categories.py`（`CCL2023_LABEL_MAP`、`CATEGORY_MAP`、`CHIFRAUD_*`、`TELE_NORMAL_LABELS`）与 `tests/test_categories.py` 的键名。
+若标签字符串与 Task 1 假设不同：同步修改 `schemas/scam_categories.py`（`CCL2023_LABEL_MAP`、`CHIFRAUD_*`、`TELE_NORMAL_LABELS`；`CATEGORY_MAP` 由 update 自动同步，无需手改）与 `tests/test_categories.py` 的键名。
 Run: `pytest tests/test_categories.py -q`
 Expected: PASS
 
@@ -1117,7 +1109,7 @@ git commit -m "feat(data): explicit v2 train composition with caps/floors + inva
             r["id"] = stable_id(r["text"], r["source"])
 ```
 
-`balance_train` 函数保留定义（不再调用），加注释 `# v2 起弃用，由 dataset_mix.compose_train 取代`。
+**删除 `balance_train` 函数**（用户裁定 2026-09-30：v2 后无调用者、测试不引用；评审规则视死代码为缺陷，git 历史可找回）。
 
 - [ ] **Step 3: 冒烟构建**
 
