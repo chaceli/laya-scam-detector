@@ -1,0 +1,11 @@
+✗ Gate1 难负评测集 FPR: 0.593 (need ≤ 0.02)
+✗ Gate2 holdout zh acc/recall: 0.937 / 0.929 (need ≥0.90 / ≥0.95)
+✗ Gate3 手写集 scam_category acc: 0.658 (need ≥ 0.70)
+✗ Gate4 rebate_scam 召回: None (need ≥ 0.80)
+============================================
+0/4 criteria met
+✓ datasets/eval_holdout_v2.jsonl: 600 条
+✓ hardneg: reports/eval-20261001-225320.md
+✓ holdout: reports/eval-20261001-225457.md
+✓ handwritten: reports/eval-20261001-225511.md
+✓ public: reports/eval-20261001-225909.md
