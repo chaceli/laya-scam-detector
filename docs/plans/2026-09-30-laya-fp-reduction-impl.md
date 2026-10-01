@@ -767,8 +767,8 @@ def test_caps_and_rebate_floor():
     rows += [mk(f"inv{i}", 1, "fgrc_scd_sms", "investment_scam") for i in range(4000)]
     rows += [mk(f"ph{i}", 1, "fbs_sms", "phishing") for i in range(200)]
     rows += [mk(f"tele{i}", 1, "teleantifraud", "spam_general") for i in range(3000)]
-    rows += [mk(f"hn{i}", 0, "hn_financial_notice") for i in range(600)]
-    rows += [mk(f"nb{i}", 0, "nb_natural_benign") for i in range(200)]
+    rows += [mk(f"hn{i}", 0, "hn_financial_notice") for i in range(300)]
+    rows += [mk(f"nb{i}", 0, "nb_natural_benign") for i in range(100)]
     rows += [mk(f"tip{i}", 0, "fgrc_scd_sms") for i in range(3000)]
     rows += [mk(f"nat{i}", 0, "ealvaradob") for i in range(3000)]
 
@@ -794,7 +794,9 @@ def test_caps_and_rebate_floor():
     tips = [r for r in neg if r["source"] in ("fgrc_scd_sms", "fgrc_scd_dialog")]
     assert 0.10 * 1100 - 1 <= len(tips) <= 0.15 * 1100 + 1
     # 难负全保留（不超过负样本预算时）
-    assert sum(1 for r in neg if r["source"] in HARDNEG_SOURCES) == 600
+    assert sum(1 for r in neg if r["source"] in HARDNEG_SOURCES) == 300
+    # 生成样本 ≤30% 上限（GEN_CAP）——测试数据也必须满足模块自身约束
+    assert stats["gen_share"] <= 0.30 + 1e-9
 
 
 def test_rebate_floor_error_when_insufficient():
@@ -805,8 +807,9 @@ def test_rebate_floor_error_when_insufficient():
 
 
 def test_eval_ids_excluded():
-    rows = [mk(f"hn{i}", 0, "hn_financial_notice") for i in range(50)]
+    rows = [mk(f"hn{i}", 0, "hn_financial_notice") for i in range(20)]
     rows += [mk(f"p{i}", 1, "ccl2023", "rebate_scam") for i in range(100)]
+    rows += [mk(f"nat{i}", 0, "ealvaradob") for i in range(300)]
     leak = rows[0]["id"]
     train, _ = compose_train(rows, eval_ids={leak}, train_target=100, seed=42)
     assert all(r["id"] != leak for r in train)
@@ -924,16 +927,21 @@ def compose_train(rows: list[dict], eval_ids: set[str],
     for r in others:
         by_cat[r["category"]].append(r)
     cat_cap = round(n_pos * PER_CATEGORY_CAP)
+    taken_cat = Counter(r["category"] for r in pos_taken)  # 跨桶：rebate/ccl-nr/tele 桶已占额度
     for cat in sorted(by_cat):
         if budget <= 0:
             break
-        picked = _sample(by_cat[cat], min(cat_cap, budget), rng)
+        remaining_cat = max(cat_cap - taken_cat.get(cat, 0), 0)
+        picked = _sample(by_cat[cat], min(remaining_cat, budget), rng)
         pos_taken += picked
         taken_ids |= {r["id"] for r in picked}
+        taken_cat[cat] += len(picked)
         budget -= len(picked)
 
-    if budget > 0:  # 比例填充剩余（按 source 占比，预算守卫）
-        leftovers = [r for r in pos_all if r["id"] not in taken_ids]
+    if budget > 0:  # 比例填充剩余（按 source 占比；单类别余量约束）
+        taken_cat = Counter(r["category"] for r in pos_taken)
+        leftovers = [r for r in pos_all if r["id"] not in taken_ids
+                     and taken_cat[r["category"]] < cat_cap]
         if leftovers:
             src_w = Counter(r["source"] for r in leftovers)
             by_src = defaultdict(list)
@@ -943,15 +951,32 @@ def compose_train(rows: list[dict], eval_ids: set[str],
                 if budget <= 0:
                     break
                 share = min(round(budget * src_w[src] / len(leftovers)) + 1, budget)
-                picked = _sample(by_src[src], share, rng)
+                rng.shuffle(by_src[src])
+                picked = []
+                for r in by_src[src]:
+                    if len(picked) >= share or budget <= 0:
+                        break
+                    if taken_cat[r["category"]] < cat_cap:
+                        picked.append(r)
+                        taken_cat[r["category"]] += 1
                 pos_taken += picked
                 taken_ids |= {r["id"] for r in picked}
                 budget -= len(picked)
-    if budget > 0:  # 最后兜底
-        rest_pos = [r for r in pos_all if r["id"] not in taken_ids]
+    if budget > 0:  # 最后兜底（仍受单类别余量约束）
+        taken_cat = Counter(r["category"] for r in pos_taken)
+        rest_pos = [r for r in pos_all if r["id"] not in taken_ids
+                    and taken_cat[r["category"]] < cat_cap]
         picked = _sample(rest_pos, min(len(rest_pos), budget), rng)
         pos_taken += picked
         budget -= len(picked)
+
+    # —— 单类别 cap 跨桶终检（design §7.1：任何单类别 ≤30% 正样本）——
+    for cat, k in Counter(r["category"] for r in pos_taken).items():
+        if k > cat_cap + 1:
+            raise RuntimeError(
+                f"类别 {cat} 占正样本 {k}/{len(pos_taken)} "
+                f"({k / len(pos_taken):.1%}) 超过 {PER_CATEGORY_CAP:.0%} 上限"
+                f" —— 调整配额或数据源配比")
 
     # —— 负样本（贪婪瀑布：难负 > 简单 > 提示类 > ChiFraud > 自然 benign）——
     hard = [r for r in neg_all if r["source"] in HARDNEG_SOURCES]
