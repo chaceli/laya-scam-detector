@@ -1,0 +1,4 @@
+{
+  "models": ["doubao-seed-2.1-turbo", "kimi-k2.6", "doubao-seed-2.0-lite"],
+  "argv_template": ["arkcli", "+chat", "{prompt}", "--model", "{model}", "--no-progress"]
+}
