@@ -26,8 +26,8 @@ def test_caps_and_rebate_floor():
     rows += [mk(f"inv{i}", 1, "fgrc_scd_sms", "investment_scam") for i in range(4000)]
     rows += [mk(f"ph{i}", 1, "fbs_sms", "phishing") for i in range(200)]
     rows += [mk(f"tele{i}", 1, "teleantifraud", "spam_general") for i in range(3000)]
-    rows += [mk(f"hn{i}", 0, "hn_financial_notice") for i in range(600)]
-    rows += [mk(f"nb{i}", 0, "nb_natural_benign") for i in range(200)]
+    rows += [mk(f"hn{i}", 0, "hn_financial_notice") for i in range(300)]
+    rows += [mk(f"nb{i}", 0, "nb_natural_benign") for i in range(100)]
     rows += [mk(f"tip{i}", 0, "fgrc_scd_sms") for i in range(3000)]
     rows += [mk(f"nat{i}", 0, "ealvaradob") for i in range(3000)]
 
@@ -53,7 +53,9 @@ def test_caps_and_rebate_floor():
     tips = [r for r in neg if r["source"] in ("fgrc_scd_sms", "fgrc_scd_dialog")]
     assert 0.10 * 1100 - 1 <= len(tips) <= 0.15 * 1100 + 1
     # 难负全保留（不超过负样本预算时）
-    assert sum(1 for r in neg if r["source"] in HARDNEG_SOURCES) == 600
+    assert sum(1 for r in neg if r["source"] in HARDNEG_SOURCES) == 300
+    # 生成样本 ≤30% 上限（GEN_CAP）——测试数据也必须满足模块自身约束
+    assert stats["gen_share"] <= 0.30 + 1e-9
 
 
 def test_rebate_floor_error_when_insufficient():
@@ -64,8 +66,9 @@ def test_rebate_floor_error_when_insufficient():
 
 
 def test_eval_ids_excluded():
-    rows = [mk(f"hn{i}", 0, "hn_financial_notice") for i in range(50)]
+    rows = [mk(f"hn{i}", 0, "hn_financial_notice") for i in range(20)]
     rows += [mk(f"p{i}", 1, "ccl2023", "rebate_scam") for i in range(100)]
+    rows += [mk(f"nat{i}", 0, "ealvaradob") for i in range(300)]
     leak = rows[0]["id"]
     train, _ = compose_train(rows, eval_ids={leak}, train_target=100, seed=42)
     assert all(r["id"] != leak for r in train)
