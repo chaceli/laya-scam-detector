@@ -136,10 +136,9 @@ CCL2023_LABEL_MAP: dict[str, str] = {
 # 单一来源注入：normalize_label 经 CATEGORY_MAP 消费 CCL 12 类（用户裁定 2026-09-30）
 CATEGORY_MAP.update(CCL2023_LABEL_MAP)
 
-# ChiFraud（灰产供给侧视角）：仅地下贷款可映射，其余在 loader 中显式丢弃
+# ChiFraud（灰产供给侧视角）：仅地下黑贷可映射，其余在 loader 中显式丢弃
 CHIFRAUD_SCAM_MAP: dict[str, str] = {
-    "地下贷款": "loan_scam",
-    "地下贷款类": "loan_scam",
+    "地下黑贷": "loan_scam",
 }
 CHIFRAUD_BENIGN_LABELS: frozenset[str] = frozenset(
     {"正常", "benign", "normal", "合法", "非诈骗"})

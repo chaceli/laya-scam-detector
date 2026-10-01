@@ -21,6 +21,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from schemas.scam_categories import CANONICAL_CATEGORIES, normalize_label
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from dataset_loaders import despace_cjk
+
 
 RAW_DIR = Path("datasets/raw")
 OUT_DIR = Path("datasets/training")
@@ -183,7 +186,7 @@ def load_fbs_sms() -> list[dict]:
         # All messages in FBS_SMS are spam (fake base station = all spam)
         with txt_path.open() as f:
             for line in f:
-                text = line.strip()
+                text = despace_cjk(line.strip())
                 if not text:
                     continue
                 canonical = normalize_label(category_raw)
