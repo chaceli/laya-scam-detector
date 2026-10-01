@@ -278,24 +278,12 @@ def split_dataset(rows: list[dict]) -> tuple[list[dict], list[dict], list[dict]]
     return train, val, test
 
 
-def balance_train(rows: list[dict]) -> list[dict]:
-    by_source: dict[str, list[dict]] = {}
-    for r in rows:
-        by_source.setdefault(r["source"], []).append(r)
-    out = []
-    for source, items in by_source.items():
-        scam = [r for r in items if r["is_scam"] == 1]
-        benign = [r for r in items if r["is_scam"] == 0]
-        random.shuffle(benign)
-        out.extend(scam)
-        out.extend(benign[: len(scam)])
-    random.shuffle(out)
-    return out
-
-
 def main() -> int:
     print("Loading sources...")
     all_rows: list[dict] = []
+    from dataset_loaders import (
+        load_ccl2023, load_chifraud, load_teleantifraud, load_phishing_email,
+    )
     for loader in (
         load_fgrc_scd_sms,
         load_fgrc_scd_dialog,
@@ -304,6 +292,10 @@ def main() -> int:
         load_fbs_sms,
         load_uc_irvine,
         load_synthetic_extra,
+        load_ccl2023,
+        load_chifraud,
+        load_teleantifraud,
+        load_phishing_email,
     ):
         try:
             rows = loader()
@@ -328,17 +320,45 @@ def main() -> int:
     real = [r for r in cleaned if r["source"] != "synthetic"]
     synth = [r for r in cleaned if r["source"] == "synthetic"]
 
-    train, val, test = split_dataset(real)
-    train.extend(synth)
-    print(f"Split: train={len(train):,} (incl {len(synth)} synthetic) "
-          f"val={len(val):,} test={len(test):,}")
+    # —— v2: 难负样本（train-only，不进 val/test）——
+    hardneg_rows: list[dict] = []
+    for hn_path in (Path("datasets/hard_negatives/train_pool.jsonl"),
+                    Path("datasets/hard_negatives/contrastive_pairs.jsonl")):
+        if hn_path.exists():
+            with hn_path.open() as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        hardneg_rows.append(json.loads(line))
+            print(f"  ✓ hardneg {hn_path.name}: cumulative {len(hardneg_rows):,}")
+        else:
+            print(f"  ! hardneg 缺失: {hn_path}（先跑 Task 10-12）")
 
-    train = balance_train(train)
-    print(f"Train after balance: {len(train):,}")
+    hardneg_eval_ids: set[str] = set()
+    _eval_path = Path("datasets/hardneg_eval.jsonl")
+    if _eval_path.exists():
+        with _eval_path.open() as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    hardneg_eval_ids.add(json.loads(line)["id"])
+        print(f"  ✓ hardneg_eval ids: {len(hardneg_eval_ids):,}")
 
-    for split, rows in [("train", train), ("val", val), ("test", test)]:
-        for r in rows:
-            r["id"] = stable_id(r["text"], r["source"])
+    for r in cleaned:
+        r["id"] = stable_id(r["text"], r["source"])
+    for r in hardneg_rows:
+        r.setdefault("id", stable_id(r["text"], r["source"]))
+
+    from dataset_mix import compose_train
+    train, mix_stats = compose_train(real + synth + hardneg_rows,
+                                     eval_ids=hardneg_eval_ids)
+    print("v2 mix stats:")
+    print(json.dumps(mix_stats, ensure_ascii=False, indent=2))
+
+    _, val, test = split_dataset(real)
+    for r in val + test:
+        r["id"] = stable_id(r["text"], r["source"])
+    print(f"Split: train={len(train):,} val={len(val):,} test={len(test):,}")
 
     for path, rows in [(TRAIN_PATH, train), (VAL_PATH, val), (TEST_PATH, test)]:
         with path.open("w") as f:
