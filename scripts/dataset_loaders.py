@@ -170,30 +170,34 @@ def load_teleantifraud() -> list[dict]:
 
 def load_phishing_email() -> list[dict]:
     """Phishing Email Dataset: keep only legitimate (label 0) English benign rows."""
-    import sys as _sys
-
-    limit = 2**24
-    if csv.field_size_limit() < limit:
-        csv.field_size_limit(limit)
-
     out = []
     base = RAW / "phishing_email"
     if not base.exists():
         return out
+
     combined = base / "phishing_email.csv"
     if combined.exists():
         paths = [combined]
     else:
+        # Fallback: per-source CSVs only when combined file is absent;
+        # combined and per-source are never read together, so no double-count.
         paths = sorted(base.rglob("*.csv"))
-    for p in paths:
-        with p.open(newline="", encoding="utf-8", errors="replace") as f:
-            for row in csv.DictReader(f):
-                text = (row.get("text_combined") or "").strip()
-                label = (row.get("label") or "").strip()
-                if text and label == "0":
-                    out.append({
-                        "text": text[:1024], "is_scam": 0, "risk": 1,
-                        "category": "benign", "language": "en",
-                        "source": "phishing_email",
-                    })
+
+    # Some email bodies exceed csv's default 128KB field limit.
+    _prior = csv.field_size_limit()
+    try:
+        csv.field_size_limit(16 * 1024 * 1024)
+        for p in paths:
+            with p.open(newline="", encoding="utf-8", errors="replace") as f:
+                for row in csv.DictReader(f):
+                    text = (row.get("text_combined") or "").strip()
+                    label = (row.get("label") or "").strip()
+                    if text and label == "0":
+                        out.append({
+                            "text": text[:1024], "is_scam": 0, "risk": 1,
+                            "category": "benign", "language": "en",
+                            "source": "phishing_email",
+                        })
+    finally:
+        csv.field_size_limit(_prior)
     return out

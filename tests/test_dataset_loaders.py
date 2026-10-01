@@ -29,6 +29,10 @@ class TestCclLoader:
         assert all(r["is_scam"] == 1 and r["risk"] == 4
                    and r["source"] == "ccl2023" and r["language"] == "zh" for r in rows)
 
+    def test_returns_empty_when_dir_missing(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("dataset_loaders.RAW", tmp_path)
+        assert load_ccl2023() == []
+
 
 class TestChifraudLoader:
     def test_whitelist_only(self, monkeypatch):
@@ -46,6 +50,10 @@ class TestTeleLoader:
         assert any(r["is_scam"] == 1 and r["category"] == "spam_general" for r in rows)
         assert any(r["is_scam"] == 0 and r["category"] == "benign" for r in rows)
 
+    def test_returns_empty_when_dir_missing(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("dataset_loaders.RAW", tmp_path)
+        assert load_teleantifraud() == []
+
 
 class TestPhishingLoader:
     def test_only_safe_rows(self, monkeypatch):
@@ -53,6 +61,27 @@ class TestPhishingLoader:
         rows = load_phishing_email()
         assert len(rows) == 1
         assert rows[0]["is_scam"] == 0 and rows[0]["language"] == "en"
+
+    def test_combined_only_when_present(self, monkeypatch, tmp_path):
+        base = tmp_path / "phishing_email"
+        base.mkdir()
+        (base / "phishing_email.csv").write_text("text_combined,label\ncombined safe,0\n")
+        (base / "CEAS_08.csv").write_text("text_combined,label\nper-source safe,0\n")
+        monkeypatch.setattr("dataset_loaders.RAW", tmp_path)
+        rows = load_phishing_email()
+        assert len(rows) == 1
+        assert rows[0]["text"] == "combined safe"
+
+    def test_falls_back_to_per_source_when_combined_missing(self, monkeypatch, tmp_path):
+        base = tmp_path / "phishing_email"
+        base.mkdir()
+        (base / "CEAS_08.csv").write_text("text_combined,label\nper-source safe,0\n")
+        (base / "Enron.csv").write_text("text_combined,label\nsecond safe,0\n")
+        monkeypatch.setattr("dataset_loaders.RAW", tmp_path)
+        rows = load_phishing_email()
+        assert len(rows) == 2
+        texts = {r["text"] for r in rows}
+        assert texts == {"per-source safe", "second safe"}
 
 
 class TestMapCompleteness:
