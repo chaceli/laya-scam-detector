@@ -83,6 +83,57 @@ def _summary(results: list[dict]) -> dict:
     }
 
 
+def _per_category_recall(results: list[dict]) -> list[tuple[str, int, int, float]]:
+    stats: dict[str, list[int]] = {}
+    for r in results:
+        p = r["predicted"]["scam_category"]
+        e = r.get("expected_category")
+        if p and e:
+            s = stats.setdefault(e, [0, 0])
+            s[1] += 1
+            if p == e:
+                s[0] += 1
+    return [(c, s[1], s[0], s[0] / s[1]) for c, s in sorted(stats.items())]
+
+
+def _hardneg_fpr(results: list[dict]):
+    """分体裁 FPR；无难负行（source 不以 hn_/nb_ 开头）返回 None。"""
+    rows = [r for r in results
+            if (r.get("source") or "").startswith(("hn_", "nb_"))
+            and r.get("expected_risk") is not None and r["expected_risk"] < 4
+            and r["predicted"]["is_scam_noul"] is not None]
+    if not rows:
+        return None
+    by_src: dict[str, list[int]] = {}
+    for r in rows:
+        s = by_src.setdefault(r["source"], [0, 0])
+        s[1] += 1
+        if r["predicted"]["is_scam_noul"] >= 0.5:
+            s[0] += 1
+    genres = [(src, s[1], s[0], s[0] / s[1]) for src, s in sorted(by_src.items())]
+    n = len(rows)
+    fp = sum(1 for r in rows if r["predicted"]["is_scam_noul"] >= 0.5)
+    return genres, (n, fp, fp / n)
+
+
+def _threshold_table(results: list[dict]) -> list[str]:
+    pairs = [(r["predicted"]["is_scam_noul"], int(r["expected_risk"] >= 4))
+             for r in results
+             if r["predicted"]["is_scam_noul"] is not None
+             and r.get("expected_risk") is not None]
+    if not pairs:
+        return ["_No binary data._"]
+    n_pos = sum(y for _, y in pairs)
+    n_neg = len(pairs) - n_pos
+    lines = ["| Threshold | Recall | FPR | Flagged% |", "|---|---|---|---|"]
+    for t in (0.05, 0.10, 0.20, 0.30, 0.50, 0.70, 0.90, 0.95):
+        tp = sum(1 for p, y in pairs if p >= t and y == 1)
+        fp = sum(1 for p, y in pairs if p >= t and y == 0)
+        lines.append(f"| {t:.2f} | {tp / max(n_pos, 1):.3f} | "
+                     f"{fp / max(n_neg, 1):.3f} | {(tp + fp) / len(pairs):.1%} |")
+    return lines
+
+
 def _category_table(results: list[dict]) -> str:
     counter = Counter()
     for r in results:
@@ -231,6 +282,21 @@ def render_report(results: list[dict], schema: dict, out_dir: Path) -> tuple[Pat
                 f"| {lang} | {n} | {stats['tp']} | {stats['fp']} | "
                 f"{stats['fn']} | {stats['tn']} | {acc:.3f} |"
             )
+    per_cat = _per_category_recall(results)
+    if per_cat:
+        md += ["", "## Per-Category Recall", "",
+               "| Category | n | Correct | Recall |", "|---|---|---|---|"]
+        for cat, n, correct, recall in per_cat:
+            md.append(f"| {cat} | {n} | {correct} | {recall:.3f} |")
+    hnfpr = _hardneg_fpr(results)
+    if hnfpr is not None:
+        genres, overall = hnfpr
+        md += ["", "## Hard-Negative FPR by Genre", "",
+               "| Source | n | FP | FPR |", "|---|---|---|---|"]
+        for src, n, fp, fpr in genres:
+            md.append(f"| {src} | {n} | {fp} | {fpr:.3f} |")
+        md.append(f"| **overall** | {overall[0]} | {overall[1]} | {overall[2]:.3f} |")
+    md += ["", "## Threshold-Recall Curve", ""] + _threshold_table(results)
     md += ["", "## Scam Category Confusion", "", _category_table(results), "",
            _failure_table(results), "", "## All samples", "",
            "| ID | Lang | Exp risk | Pred noul | Exp cat | Pred cat | Latency |",
