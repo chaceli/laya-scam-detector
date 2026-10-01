@@ -2,6 +2,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from dataset_loaders import (  # noqa: E402
     despace_cjk, load_ccl2023, load_chifraud,
@@ -32,6 +34,14 @@ class TestCclLoader:
     def test_returns_empty_when_dir_missing(self, monkeypatch, tmp_path):
         monkeypatch.setattr("dataset_loaders.RAW", tmp_path)
         assert load_ccl2023() == []
+
+    def test_raises_on_field_name_mismatch(self, monkeypatch, tmp_path):
+        d = tmp_path / "ccl2023"
+        d.mkdir()
+        (d / "bad.json").write_text('[{"wrong_key": "x"}]')
+        monkeypatch.setattr("dataset_loaders.RAW", tmp_path)
+        with pytest.raises(RuntimeError, match="field-name mismatch"):
+            load_ccl2023()
 
 
 class TestChifraudLoader:

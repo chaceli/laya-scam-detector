@@ -25,8 +25,8 @@ CCL_TEXT_KEYS = ("案情描述", "案件描述", "text", "content", "文本", "d
 CCL_LABEL_KEYS = ("案件类别", "类别", "label_name", "label", "罪名", "riskType")
 CHIFRAUD_TEXT_KEYS = ("Text", "text", "content", "文本")
 CHIFRAUD_LABEL_KEYS = ("Label_id", "label", "label_name", "类别")
-TELE_TEXT_KEYS = ("text", "transcription", "content", "对话")
-TELE_LABEL_KEYS = ("label", "label_name", "type", "风险类别")
+TELE_TEXT_KEYS = ("text", "transcription", "content", "dialogue", "conversation", "对话")
+TELE_LABEL_KEYS = ("label", "label_name", "is_fraud", "fraud_type", "type", "风险类别")
 
 
 def despace_cjk(text: str) -> str:
@@ -64,6 +64,7 @@ def parse_jsonish(p: Path) -> list[dict]:
 def load_ccl2023() -> list[dict]:
     """CCL2023-FCC victim records. Strict 12-class mapping raises on unmapped labels."""
     out, unmapped = [], []
+    files_seen = 0
     base = RAW / "ccl2023"
     if not base.exists():
         return out
@@ -77,6 +78,7 @@ def load_ccl2023() -> list[dict]:
                 records = list(csv.DictReader(f))
         else:
             continue
+        files_seen += 1
         for item in records:
             text = _first(item, CCL_TEXT_KEYS)
             label = _first(item, CCL_LABEL_KEYS)
@@ -95,6 +97,10 @@ def load_ccl2023() -> list[dict]:
         raise RuntimeError(
             f"CCL2023 unmapped labels: {len(unmapped)} (e.g. {sample}) — "
             f"update CCL2023_LABEL_MAP per Task 4 probe")
+    if files_seen > 0 and not out:
+        raise RuntimeError(
+            f"CCL2023: {files_seen} data file(s) under {base} yielded 0 rows — "
+            f"field-name mismatch? expected text in {CCL_TEXT_KEYS}, label in {CCL_LABEL_KEYS}")
     return out
 
 
@@ -146,12 +152,14 @@ def load_chifraud() -> list[dict]:
 def load_teleantifraud() -> list[dict]:
     """TeleAntiFraud-28k: ASR transcripts with binary fraud/normal labels."""
     out = []
+    files_seen = 0
     base = RAW / "teleantifraud"
     if not base.exists():
         return out
     for p in sorted(base.rglob("*")):
         if not p.is_file() or p.suffix.lower() not in (".json", ".jsonl"):
             continue
+        files_seen += 1
         for item in parse_jsonish(p):
             text = _first(item, TELE_TEXT_KEYS)
             label = _first(item, TELE_LABEL_KEYS)
@@ -165,6 +173,10 @@ def load_teleantifraud() -> list[dict]:
                 "category": "benign" if is_normal else "spam_general",
                 "language": "zh", "source": "teleantifraud",
             })
+    if files_seen > 0 and not out:
+        raise RuntimeError(
+            f"TeleAntiFraud: {files_seen} data file(s) under {base} yielded 0 rows — "
+            f"field-name mismatch? expected text in {TELE_TEXT_KEYS}, label in {TELE_LABEL_KEYS}")
     return out
 
 

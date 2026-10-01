@@ -145,4 +145,4 @@ CHIFRAUD_BENIGN_LABELS: frozenset[str] = frozenset(
 
 # TeleAntiFraud-28k：正常通话标签候选（Task 4 探测后按实际修正）
 TELE_NORMAL_LABELS: frozenset[str] = frozenset(
-    {"normal", "benign", "正常", "非诈骗", "ham"})
+    {"normal", "benign", "正常", "非诈骗", "ham", "false", "0", "no"})
