@@ -86,15 +86,31 @@ def compose_train(rows: list[dict], eval_ids: set[str],
     for r in others:
         by_cat[r["category"]].append(r)
     cat_cap = round(n_pos * PER_CATEGORY_CAP)
+    ccl_nr_cap = round(n_pos * CCL_NONREBATE_CAP)
     taken_cat = Counter(r["category"] for r in pos_taken)  # 跨桶：rebate/ccl-nr/tele 桶已占额度
+    taken_ccl_nr = sum(1 for r in pos_taken
+                       if r["source"] == "ccl2023" and r["category"] != "rebate_scam")
     for cat in sorted(by_cat):
         if budget <= 0:
             break
         remaining_cat = max(cat_cap - taken_cat.get(cat, 0), 0)
-        picked = _sample(by_cat[cat], min(remaining_cat, budget), rng)
+        if remaining_cat == 0:
+            continue
+        # 跨桶 ccl_nr cap：cap 已满时排除 ccl 非刷单返利行（防伪重复文体跨桶越界）
+        pool = by_cat[cat]
+        if taken_ccl_nr >= ccl_nr_cap:
+            pool = [r for r in pool
+                    if not (r["source"] == "ccl2023"
+                            and r["category"] != "rebate_scam")]
+        if not pool:
+            continue
+        picked = _sample(pool, min(remaining_cat, budget), rng)
         pos_taken += picked
         taken_ids |= {r["id"] for r in picked}
         taken_cat[cat] += len(picked)
+        taken_ccl_nr += sum(1 for r in picked
+                            if r["source"] == "ccl2023"
+                            and r["category"] != "rebate_scam")
         budget -= len(picked)
 
     if budget > 0:  # 比例填充剩余（按 source 占比；单类别余量约束）
