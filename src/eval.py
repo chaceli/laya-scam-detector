@@ -30,6 +30,14 @@ def _thresholded_is_scam(p_noul: float, threshold: float = 0.5) -> int:
     return 1 if p_noul >= threshold else 0
 
 
+def _expected_category(rec: dict) -> str | None:
+    """v2 统一口径：category 为准，expected_category 向后兼容。"""
+    raw = rec.get("category") or rec.get("expected_category")
+    if raw is None:
+        return None
+    return normalize_label(raw)
+
+
 def run_evaluation(router: Router, input_jsonl: str, schema: dict) -> list[dict]:
     """Run all samples through router.predict; return enriched records."""
     results = []
@@ -45,9 +53,7 @@ def run_evaluation(router: Router, input_jsonl: str, schema: dict) -> list[dict]
             except Exception as e:
                 pred = {"error": str(e), "answers": {}}
             answers = pred.get("answers", {})
-            expected_cat = rec.get("expected_category")
-            if expected_cat is not None:
-                expected_cat = normalize_label(expected_cat)
+            expected_cat = _expected_category(rec)
             enriched = {
                 "id": rec.get("id"),
                 "type": rec.get("type"),
