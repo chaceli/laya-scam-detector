@@ -120,16 +120,16 @@ def index_to_label(idx: int) -> str:
 # CCL2023-FCC 严格映射（loader 逐条断言，未覆盖即报错，不走 spam_general 兜底）
 CCL2023_LABEL_MAP: dict[str, str] = {
     "刷单返利类": "rebate_scam",
-    "贷款代办信用卡类": "loan_scam",
+    "冒充电商物流客服类": "delivery_fraud",
+    "虚假网络投资理财类": "investment_scam",
+    "贷款、代办信用卡类": "loan_scam",
     "虚假征信类": "loan_scam",
-    "虚假投资理财类": "investment_scam",
-    "虚假购物服务类": "phishing",
-    "冒充客服类": "impersonation",
-    "冒充公检法类": "impersonation",
-    "冒充领导熟人类": "impersonation",
-    "网络婚恋交友类": "romance_scam",
-    "机票退改签类": "impersonation",
-    "网络赌博类": "spam_general",
+    "虚假购物、服务类": "phishing",
+    "冒充公检法及政府机关类": "impersonation",
+    "冒充领导、熟人类": "impersonation",
+    "网络游戏产品虚假交易类": "spam_general",
+    "网络婚恋、交友类（非虚假网络投资理财类）": "romance_scam",
+    "冒充军警购物类诈骗": "impersonation",
     "网黑案件": "spam_general",
 }
 
