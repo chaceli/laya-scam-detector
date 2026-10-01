@@ -143,7 +143,7 @@ def _category_table(results: list[dict]) -> str:
             counter[(e, p)] += 1
     if not counter:
         return "_No category data._"
-    # Use canonical 13-class ordering when available; fall back to alphabetical
+    # Use canonical category ordering when available; fall back to alphabetical
     try:
         import sys
         from pathlib import Path as _Path

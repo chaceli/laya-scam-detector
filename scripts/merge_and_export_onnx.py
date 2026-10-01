@@ -137,12 +137,12 @@ def copy_config(base_path: Path, output_dir: Path) -> None:
         if src.exists():
             shutil.copy(src, output_dir / name)
             print(f"  ✓ Copied {name}")
-    # Write categories.json with the 13-class taxonomy
+    # Write categories.json with the canonical taxonomy
     from schemas.scam_categories import CANONICAL_CATEGORIES
     (output_dir / "categories.json").write_text(
         json.dumps({"categories": CANONICAL_CATEGORIES}, ensure_ascii=False, indent=2)
     )
-    print("  ✓ Wrote categories.json (13 classes)")
+    print(f"  ✓ Wrote categories.json ({len(CANONICAL_CATEGORIES)} classes)")
 
 
 def validate_onnx(onnx_path: Path, output_dir: Path) -> float:

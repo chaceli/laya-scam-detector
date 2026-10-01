@@ -1,4 +1,4 @@
-"""Migrate existing test sets to canonical 13-class labels.
+"""Migrate existing test sets to canonical category labels.
 
 Most existing labels are already canonical (benign, phishing, etc.).
 The mapping function from schemas.scam_categories handles edge cases.
@@ -50,7 +50,7 @@ def migrate_file(path: Path) -> None:
 
 
 def main() -> int:
-    print("Migrating test sets to canonical 13-class labels...")
+    print("Migrating test sets to canonical category labels...")
     for p in TARGETS:
         migrate_file(p)
     return 0

@@ -114,7 +114,7 @@ def main() -> int:
     (out_dir / "categories.json").write_text(
         json.dumps({"categories": CANONICAL_CATEGORIES}, ensure_ascii=False, indent=2)
     )
-    print("  ✓ categories.json (13 classes)")
+    print(f"  ✓ categories.json ({len(CANONICAL_CATEGORIES)} classes)")
 
     if args.verify:
         print("\nVerifying PyTorch vs ONNX...")

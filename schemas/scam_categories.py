@@ -1,7 +1,7 @@
-"""Category mapping from source dataset labels to our unified 13-class schema.
+"""Category mapping from source dataset labels to our unified category schema.
 
 Each public dataset uses different label vocabulary. This module provides:
-1. The 13-class canonical taxonomy (CANONICAL_CATEGORIES)
+1. The canonical category taxonomy (CANONICAL_CATEGORIES)
 2. Maps source labels → canonical labels (CATEGORY_MAP)
 3. Functions to normalize a free-form label to the canonical 13
 
@@ -90,7 +90,7 @@ CATEGORY_MAP: dict[str, str] = {
 
 
 def normalize_label(raw_label: str) -> str:
-    """Map any source label to canonical 13-class category.
+    """Map any source label to a canonical category.
 
     Falls back to 'spam_general' for unknown source labels (better than
     dropping the sample, which would lose training data). Canonical

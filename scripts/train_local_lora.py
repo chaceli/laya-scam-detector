@@ -5,7 +5,7 @@ Replaces the Kaggle cloud training path. Runs on Apple Silicon (MPS) or CPU.
 Design:
 - Base: convaiinnovations/laya-multilingual (mmBERT-base, 322M)
 - LoRA: r=8 on Wqkv+Wo (attention), ~1.15M trainable params (0.36%)
-- Data: datasets/training/{train,val}.jsonl (13-class labels)
+- Data: datasets/training/{train,val}.jsonl (canonical category labels)
 - Objective: combined cross-entropy on is_scam (noul) + category (choice)
   Cross-entropy is a strictly proper scoring rule (log score), consistent
   with Laya's RLCD training.

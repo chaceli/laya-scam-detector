@@ -1,4 +1,4 @@
-"""Batch evaluation over JSONL test sets (13-class schema)."""
+"""Batch evaluation over JSONL test sets (canonical category schema)."""
 from __future__ import annotations
 
 import json

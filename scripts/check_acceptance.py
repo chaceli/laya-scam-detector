@@ -3,7 +3,7 @@
 Reads the latest eval report and checks hard criteria:
 - Chinese is_scam accuracy >= 0.90
 - is_scam recall >= 0.95
-- 13-class accuracy >= 0.70
+- category accuracy >= 0.70
 
 Usage:
   PYTHONPATH=. python scripts/check_acceptance.py [report_path]
@@ -98,7 +98,7 @@ def run_legacy(report_arg: str | None) -> int:
     results: list[tuple[str, float | None, float, str]] = [
         ("Chinese is_scam accuracy", parse_language_accuracy(text, "zh"), 0.90, ">="),
         ("is_scam recall", find_metric(metrics, "recall"), 0.95, ">="),
-        ("13-class accuracy", find_metric(metrics, "category accuracy"), 0.70, ">="),
+        ("category accuracy", find_metric(metrics, "category accuracy"), 0.70, ">="),
     ]
 
     n_pass = 0
