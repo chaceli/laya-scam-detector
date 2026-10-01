@@ -81,77 +81,99 @@ def compose_train(rows: list[dict], eval_ids: set[str],
     taken_ids |= {r["id"] for r in picked}
     budget -= len(picked)
 
-    others = [r for r in pos_all if r["id"] not in taken_ids]
-    by_cat = defaultdict(list)
-    for r in others:
-        by_cat[r["category"]].append(r)
     cat_cap = round(n_pos * PER_CATEGORY_CAP)
     ccl_nr_cap = round(n_pos * CCL_NONREBATE_CAP)
-    taken_cat = Counter(r["category"] for r in pos_taken)  # 跨桶：rebate/ccl-nr/tele 桶已占额度
-    taken_ccl_nr = sum(1 for r in pos_taken
-                       if r["source"] == "ccl2023" and r["category"] != "rebate_scam")
-    for cat in sorted(by_cat):
-        if budget <= 0:
-            break
-        remaining_cat = max(cat_cap - taken_cat.get(cat, 0), 0)
-        if remaining_cat == 0:
-            continue
-        # 跨桶 ccl_nr cap：cap 已满时排除 ccl 非刷单返利行（防伪重复文体跨桶越界）
-        pool = by_cat[cat]
-        if taken_ccl_nr >= ccl_nr_cap:
-            pool = [r for r in pool
-                    if not (r["source"] == "ccl2023"
-                            and r["category"] != "rebate_scam")]
-        if not pool:
-            continue
-        picked = _sample(pool, min(remaining_cat, budget), rng)
-        pos_taken += picked
-        taken_ids |= {r["id"] for r in picked}
-        taken_cat[cat] += len(picked)
-        taken_ccl_nr += sum(1 for r in picked
-                            if r["source"] == "ccl2023"
-                            and r["category"] != "rebate_scam")
-        budget -= len(picked)
+    tele_cap = round(n_pos * TELE_POS_CAP)
+    taken_cat = Counter(r["category"] for r in pos_taken)
+    taken = {
+        "ccl_nr": sum(1 for r in pos_taken
+                      if r["source"] == "ccl2023" and r["category"] != "rebate_scam"),
+        "tele": sum(1 for r in pos_taken if r["source"] == "teleantifraud"),
+    }
 
-    if budget > 0:  # 比例填充剩余（按 source 占比；单类别余量约束）
-        taken_cat = Counter(r["category"] for r in pos_taken)
-        leftovers = [r for r in pos_all if r["id"] not in taken_ids
-                     and taken_cat[r["category"]] < cat_cap]
+    def _caps_block(r: dict) -> bool:
+        """三重跨桶上限：单类别 ≤30% / ccl 非刷单返利 ≤20% / tele ≤10%。"""
+        if taken_cat[r["category"]] >= cat_cap:
+            return True
+        if (r["source"] == "ccl2023" and r["category"] != "rebate_scam"
+                and taken["ccl_nr"] >= ccl_nr_cap):
+            return True
+        if r["source"] == "teleantifraud" and taken["tele"] >= tele_cap:
+            return True
+        return False
+
+    def _take_eligible(pool: list[dict], k: int) -> None:
+        nonlocal budget
+        rng.shuffle(pool)
+        n = 0
+        for r in pool:
+            if n >= k or budget <= 0:
+                break
+            if r["id"] in taken_ids or _caps_block(r):
+                continue
+            pos_taken.append(r)
+            taken_ids.add(r["id"])
+            taken_cat[r["category"]] += 1
+            if r["source"] == "ccl2023" and r["category"] != "rebate_scam":
+                taken["ccl_nr"] += 1
+            if r["source"] == "teleantifraud":
+                taken["tele"] += 1
+            budget -= 1
+            n += 1
+
+    # 阶段 A：按可用量比例分配（最大余数法），避免字母序贪心饿死后位类别
+    pools: dict[str, list[dict]] = {}
+    for r in pos_all:
+        if r["id"] in taken_ids or _caps_block(r):
+            continue
+        pools.setdefault(r["category"], []).append(r)
+    eff = {cat: min(len(pool), max(cat_cap - taken_cat.get(cat, 0), 0))
+           for cat, pool in pools.items()}
+    total_eff = sum(eff.values())
+    if budget > 0 and total_eff > 0:
+        share_total = min(budget, total_eff)
+        raw = {cat: share_total * eff[cat] / total_eff for cat in pools}
+        targets = {cat: int(raw[cat]) for cat in pools}
+        remainder = share_total - sum(targets.values())
+        for cat in sorted(pools, key=lambda c: -(raw[c] - int(raw[c]))):
+            if remainder <= 0:
+                break
+            if targets[cat] < eff[cat]:
+                targets[cat] += 1
+                remainder -= 1
+        for cat in sorted(pools):
+            _take_eligible(pools[cat], targets[cat])
+
+    # 阶段 B：按 source 占比回填余量（仍受三重上限）
+    if budget > 0:
+        leftovers = [r for r in pos_all
+                     if r["id"] not in taken_ids and not _caps_block(r)]
         if leftovers:
             src_w = Counter(r["source"] for r in leftovers)
-            by_src = defaultdict(list)
+            by_src: dict[str, list[dict]] = {}
             for r in leftovers:
-                by_src[r["source"]].append(r)
+                by_src.setdefault(r["source"], []).append(r)
             for src in sorted(by_src):
                 if budget <= 0:
                     break
-                share = min(round(budget * src_w[src] / len(leftovers)) + 1, budget)
-                rng.shuffle(by_src[src])
-                picked = []
-                for r in by_src[src]:
-                    if len(picked) >= share or budget <= 0:
-                        break
-                    if taken_cat[r["category"]] < cat_cap:
-                        picked.append(r)
-                        taken_cat[r["category"]] += 1
-                pos_taken += picked
-                taken_ids |= {r["id"] for r in picked}
-                budget -= len(picked)
-    if budget > 0:  # 最后兜底（仍受单类别余量约束）
-        taken_cat = Counter(r["category"] for r in pos_taken)
-        rest_pos = [r for r in pos_all if r["id"] not in taken_ids
-                    and taken_cat[r["category"]] < cat_cap]
-        picked = _sample(rest_pos, min(len(rest_pos), budget), rng)
-        pos_taken += picked
-        budget -= len(picked)
+                share = round(budget * src_w[src] / len(leftovers)) + 1
+                _take_eligible(by_src[src], share)
 
-    # —— 单类别 cap 跨桶终检（design §7.1：任何单类别 ≤30% 正样本）——
-    for cat, k in Counter(r["category"] for r in pos_taken).items():
+    # 阶段 C：最后兜底（仍受三重上限）
+    if budget > 0:
+        rest_pos = [r for r in pos_all
+                    if r["id"] not in taken_ids and not _caps_block(r)]
+        _take_eligible(rest_pos, budget)
+
+    # —— 三重上限跨桶终检（design §7.1：单类别 ≤30% / ccl 非返利 ≤20% / tele ≤10%）——
+    for cat, k in taken_cat.items():
         if k > cat_cap + 1:
             raise RuntimeError(
-                f"类别 {cat} 占正样本 {k}/{len(pos_taken)} "
-                f"({k / len(pos_taken):.1%}) 超过 {PER_CATEGORY_CAP:.0%} 上限"
-                f" —— 调整配额或数据源配比")
+                f"类别 {cat} 占正样本 {k}/{len(pos_taken)} 超过 {PER_CATEGORY_CAP:.0%} 上限")
+    if taken["ccl_nr"] > ccl_nr_cap + 1:
+        raise RuntimeError(f"ccl 非返利 {taken['ccl_nr']} 超 {CCL_NONREBATE_CAP:.0%} 上限")
+    if taken["tele"] > tele_cap + 1:
+        raise RuntimeError(f"tele {taken['tele']} 超 {TELE_POS_CAP:.0%} 上限")
 
     # —— 负样本（贪婪瀑布：难负 > 简单 > 提示类 > ChiFraud > 自然 benign）——
     hard = [r for r in neg_all if r["source"] in HARDNEG_SOURCES]

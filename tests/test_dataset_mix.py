@@ -81,6 +81,22 @@ def test_generated_cap_enforced():
         compose_train(rows, eval_ids=set(), train_target=2000, seed=42)
 
 
+def test_no_category_starvation():
+    """比例分配应保证每个有数据的类别都获配，而非字母序贪心饿死后位类别。"""
+    rows = []
+    rows += [mk(f"r{i}", 1, "ccl2023", "rebate_scam") for i in range(2000)]
+    rows += [mk(f"inv{i}", 1, "fgrc_scd_sms", "investment_scam") for i in range(5000)]
+    rows += [mk(f"job{i}", 1, "scamshield", "job_scam") for i in range(500)]
+    rows += [mk(f"lot{i}", 1, "fbs_sms", "lottery_scam") for i in range(500)]
+    rows += [mk(f"mkt{i}", 1, "fbs_sms", "marketing") for i in range(500)]
+    rows += [mk(f"rom{i}", 1, "fgrc_scd_sms", "romance_scam") for i in range(500)]
+    rows += [mk(f"nat{i}", 0, "ealvaradob") for i in range(2000)]
+    train, stats = compose_train(rows, eval_ids=set(), train_target=2000, seed=42)
+    cats = stats["pos_by_category"]
+    for c in ("job_scam", "lottery_scam", "marketing", "romance_scam"):
+        assert cats.get(c, 0) > 0, f"{c} starved to 0 under proportional allocation"
+
+
 def test_stable_id_matches_build_dataset():
     import importlib.util
     spec = importlib.util.spec_from_file_location(

@@ -88,4 +88,4 @@ class TestMapCompleteness:
     def test_fixture_labels_in_strict_map(self):
         import json
         for rec in json.loads((FIX / "ccl2023" / "train_sample.json").read_text()):
-            assert rec["label_name"] in CCL2023_LABEL_MAP
+            assert rec["案件类别"] in CCL2023_LABEL_MAP

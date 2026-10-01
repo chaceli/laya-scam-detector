@@ -21,8 +21,8 @@ from schemas.scam_categories import (
 RAW = Path("datasets/raw")
 
 # Detection key candidates for flexible source schemas.
-CCL_TEXT_KEYS = ("text", "content", "案件描述", "文本", "dialogue")
-CCL_LABEL_KEYS = ("label_name", "label", "罪名", "类别", "riskType")
+CCL_TEXT_KEYS = ("案情描述", "案件描述", "text", "content", "文本", "dialogue")
+CCL_LABEL_KEYS = ("案件类别", "类别", "label_name", "label", "罪名", "riskType")
 CHIFRAUD_TEXT_KEYS = ("Text", "text", "content", "文本")
 CHIFRAUD_LABEL_KEYS = ("Label_id", "label", "label_name", "类别")
 TELE_TEXT_KEYS = ("text", "transcription", "content", "对话")
