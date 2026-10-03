@@ -49,7 +49,15 @@ def compose_train(rows: list[dict], eval_ids: set[str],
                   ) -> tuple[list[dict], dict]:
     """按配比组装训练集。返回 (train_rows, stats)。违反硬约束即抛错。"""
     rng = random.Random(seed)
-    pool = [r for r in rows if r.get("id") not in eval_ids]
+    # 入口按 id 去重：同一 id 重复出现时只保留首条，正负两侧都不会重复入池
+    seen_ids: set[str] = set()
+    pool: list[dict] = []
+    for r in rows:
+        rid = r.get("id")
+        if rid in eval_ids or rid in seen_ids:
+            continue
+        seen_ids.add(rid)
+        pool.append(r)
     pos_all = [r for r in pool if r["is_scam"] == 1]
     neg_all = [r for r in pool if r["is_scam"] == 0]
 
