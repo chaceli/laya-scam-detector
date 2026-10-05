@@ -23,13 +23,15 @@ EVAL_INPUTS = [
 
 
 def ensure_holdout() -> None:
-    """600 条中文 holdout（test.jsonl 采样，seed=42，评测格式）+ rebate 真实评测集。
+    """600 条中文 holdout（test.jsonl 采样，seed=42）+ 两个 rebate 评测集。
 
     rebate_scam 必须显式并入：test.jsonl 来自 split_dataset(real)，而合成源
     只进 train，因此 test.jsonl 里 rebate_scam 为 0 条。不并入的话 Gate4 的
     分类别召回表查不到该类，parse_category_recall 返回 None，gate 必然失败。
-    并入的正是 datasets/rebate_eval_real.jsonl —— 受害者/警方/骗子口吻，且
-    与训练集零重叠，因此 Gate4 不会变成自测。
+    并入两个互补口径：
+    - datasets/ccl_rebate_eval.jsonl —— CCL 同源留出（主指标，1000 条，n 大）
+    - datasets/rebate_eval_real.jsonl —— 42 条警方/媒体跨源集（不同语域，泛化检查）
+    两者均与训练集零重叠（见 build_dataset 的归一化文本排除）。
     """
     if HOLDOUT.exists():
         return
@@ -45,22 +47,25 @@ def ensure_holdout() -> None:
         "category": r["category"], "source": r["source"],
     } for r in picked]
 
-    rebate_path = Path("datasets/rebate_eval_real.jsonl")
     n_rebate = 0
-    if rebate_path.exists():
-        for l in rebate_path.open():
+    for eval_file in ("datasets/ccl_rebate_eval.jsonl",
+                      "datasets/rebate_eval_real.jsonl"):
+        p = Path(eval_file)
+        if not p.exists():
+            continue
+        for l in p.open():
             l = l.strip()
             if not l:
                 continue
             r = json.loads(l)
-            out.append({
-                "id": r.get("id") or f"rebate_eval_{n_rebate}",
-                "type": "single", "state": r["text"],
-                "language": "zh", "expected_risk": r["risk"],
-                "category": r["category"], "source": r["source"],
-            })
+            r.setdefault("id", f"rebate_eval_{n_rebate}")
+            r.setdefault("type", "single")
+            r.setdefault("language", "zh")
+            if "state" not in r and "text" in r:
+                r["state"] = r["text"]
+            out.append(r)
             n_rebate += 1
-    assert n_rebate, "rebate 评测集为空 —— Gate4 将无 rebate_scam 可评"
+    assert n_rebate, "两个 rebate 评测集都为空 —— Gate4 将无 rebate_scam 可评"
 
     with HOLDOUT.open("w") as f:
         for r in out:
