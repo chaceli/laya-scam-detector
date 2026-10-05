@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 # One-shot v2 pipeline resume: Task 13 build -> invariant check -> Task 15 train (background).
 # Usage: bash scripts/run_v2_pipeline.sh
-# Prereq: datasets/raw/ccl2023/{train.json,test.json} in place (CodaLab or AI Studio mirror).
+# Prereq: datasets/synthetic/rebate_scam.jsonl (run gen_rebate_synthetic.py).
+# CCL2023 is no longer required: rebate_scam comes from the template generator.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-TRAIN_JSON="datasets/raw/ccl2023/train.json"
-TEST_JSON="datasets/raw/ccl2023/test.json"
+REBATE_SYNTH="datasets/synthetic/rebate_scam.jsonl"
 
-[ -f "$TRAIN_JSON" ] || { echo "MISSING: $TRAIN_JSON (download from CodaLab or AI Studio dataset 215947)"; exit 2; }
-[ -f "$TEST_JSON" ] || { echo "MISSING: $TEST_JSON"; exit 2; }
+[ -f "$REBATE_SYNTH" ] || { echo "MISSING: $REBATE_SYNTH (run: python scripts/gen_rebate_synthetic.py)"; exit 2; }
 source .venv/bin/activate
 
 echo "=== Task 13: v2 dataset build (~5 min) ==="
@@ -18,15 +17,27 @@ python scripts/build_dataset.py 2>&1 | tee reports/build_v2.log | tail -30
 echo ""
 echo "=== Invariant verification ==="
 python - <<'PYEOF'
-import json
+import json, sys
+sys.path.insert(0, 'scripts')
+from dataset_mix import _norm_text
 from collections import Counter
+
 train = [json.loads(l) for l in open('datasets/training/train.jsonl')]
-eval_ids = {json.loads(l)['id'] for l in open('datasets/hardneg_eval.jsonl')}
 pos = [r for r in train if r['is_scam'] == 1]
 c = Counter(r['category'] for r in pos)
 gen = sum(1 for r in train if r.get('source', '').startswith(('hn_', 'nb_', 'contrastive')))
-leak = [r['id'] for r in train if r['id'] in eval_ids]
-print('n', len(train), '| pos', len(pos), '| rebate', round(c['rebate_scam']/len(pos), 3), '| gen', round(gen/len(train), 3), '| leak', len(leak))
+
+# Leak check is by normalised text, not id: stable_id hashes the source in, so
+# eval rows (source=rebate_eval_real) never share an id with training rows
+# (source=syn_rebate) and an id-only check would silently pass.
+hardneg_eval = {json.loads(l)['state'] for l in open('datasets/hardneg_eval.jsonl')}
+rebate_eval = {json.loads(l)['text'] for l in open('datasets/rebate_eval_real.jsonl')}
+train_norm = {_norm_text(r['text']) for r in train}
+leak = ({_norm_text(t) for t in hardneg_eval | rebate_eval} & train_norm)
+
+print('n', len(train), '| pos', len(pos),
+      '| rebate', round(c['rebate_scam']/len(pos), 3),
+      '| gen', round(gen/len(train), 3), '| leak', len(leak))
 assert len(train) == 45000 and not leak
 assert c['rebate_scam']/len(pos) >= 0.25 - 0.001
 assert gen/len(train) <= 0.30 + 0.001
