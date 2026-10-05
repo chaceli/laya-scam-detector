@@ -334,6 +334,33 @@ def main() -> int:
         else:
             print(f"  ! hardneg 缺失: {hn_path}（先跑 Task 10-12）")
 
+    # —— v2: rebate_scam 合成正样本（train-only）+ 真实评测集 id 排除 ——
+    # CCL2023 is unobtainable, so rebate_scam comes from a template generator.
+    # Its eval set is hand-written in a different voice (victim/police/scammer)
+    # and is excluded from training by id, so recall is not self-scored.
+    rebate_rows: list[dict] = []
+    _rebate_path = Path("datasets/synthetic/rebate_scam.jsonl")
+    if _rebate_path.exists():
+        with _rebate_path.open() as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    rebate_rows.append(json.loads(line))
+        print(f"  ✓ syn_rebate train rows: {len(rebate_rows):,}")
+    else:
+        print(f"  ! syn_rebate 缺失: {_rebate_path}（先跑 gen_rebate_synthetic.py）")
+
+    rebate_eval_ids: set[str] = set()
+    _rebate_eval = Path("datasets/rebate_eval_real.jsonl")
+    if _rebate_eval.exists():
+        with _rebate_eval.open() as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    r = json.loads(line)
+                    rebate_eval_ids.add(r.get("id") or stable_id(r["text"], r["source"]))
+        print(f"  ✓ rebate_eval ids: {len(rebate_eval_ids):,}")
+
     hardneg_eval_ids: set[str] = set()
     _eval_path = Path("datasets/hardneg_eval.jsonl")
     if _eval_path.exists():
@@ -348,10 +375,12 @@ def main() -> int:
         r["id"] = stable_id(r["text"], r["source"])
     for r in hardneg_rows:
         r.setdefault("id", stable_id(r["text"], r["source"]))
+    for r in rebate_rows:
+        r.setdefault("id", stable_id(r["text"], r["source"]))
 
     from dataset_mix import compose_train
-    train, mix_stats = compose_train(real + synth + hardneg_rows,
-                                     eval_ids=hardneg_eval_ids)
+    train, mix_stats = compose_train(real + synth + hardneg_rows + rebate_rows,
+                                     eval_ids=hardneg_eval_ids | rebate_eval_ids)
     print("v2 mix stats:")
     print(json.dumps(mix_stats, ensure_ascii=False, indent=2))
 
