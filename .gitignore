@@ -28,3 +28,6 @@ dist/
 
 # OhMyOpenCode session state
 .omo/
+
+# CCL2023 原始数据（用户放置；副本进 datasets/raw/ 供 loader）
+datasets/ccl2023/
