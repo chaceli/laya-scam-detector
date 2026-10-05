@@ -334,37 +334,21 @@ def main() -> int:
         else:
             print(f"  ! hardneg 缺失: {hn_path}（先跑 Task 10-12）")
 
-    # —— v2: rebate_scam 合成正样本（train-only）+ 真实评测集排除 ——
-    # CCL2023 is unobtainable, so rebate_scam comes from a template generator.
-    # Its eval set is hand-written in a different voice (victim/police/scammer).
-    # Exclusion is by normalised text, NOT id: stable_id hashes the source in,
-    # and the eval rows carry a different source than the training rows, so
-    # id matching can never fire and the class would be self-scored.
-    rebate_rows: list[dict] = []
-    _rebate_path = Path("datasets/synthetic/rebate_scam.jsonl")
-    if _rebate_path.exists():
-        with _rebate_path.open() as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    rebate_rows.append(json.loads(line))
-        print(f"  ✓ syn_rebate train rows: {len(rebate_rows):,}")
-    else:
-        print(f"  ! syn_rebate 缺失: {_rebate_path}（先跑 gen_rebate_synthetic.py）")
-
-    rebate_eval_ids: set[str] = set()
+    # —— v3: rebate_scam 由真实 CCL2023 提供（合成已移除）——
+    # 排除集：42 条跨源案件 + CCL 同源留出。一律按归一化文本排除（stable_id 含
+    # source，跨源永不匹配 id）。见 docs/plans/2026-10-05-v3-real-ccl-rebate-design.md §3。
     rebate_eval_texts: set[str] = set()
-    _rebate_eval = Path("datasets/rebate_eval_real.jsonl")
-    if _rebate_eval.exists():
-        with _rebate_eval.open() as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    r = json.loads(line)
-                    rebate_eval_ids.add(
-                        r.get("id") or stable_id(r["text"], r["source"]))
-                    rebate_eval_texts.add(r["text"])
-        print(f"  ✓ rebate_eval excluded: {len(rebate_eval_texts):,} texts")
+    for _eval_file in ("datasets/rebate_eval_real.jsonl",
+                       "datasets/ccl_rebate_eval.jsonl"):
+        _p = Path(_eval_file)
+        if _p.exists():
+            with _p.open() as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        r = json.loads(line)
+                        rebate_eval_texts.add(r.get("text") or r.get("state"))
+            print(f"  ✓ {_eval_file}: 排除文本累计 {len(rebate_eval_texts):,}")
 
     hardneg_eval_ids: set[str] = set()
     _eval_path = Path("datasets/hardneg_eval.jsonl")
@@ -380,13 +364,11 @@ def main() -> int:
         r["id"] = stable_id(r["text"], r["source"])
     for r in hardneg_rows:
         r.setdefault("id", stable_id(r["text"], r["source"]))
-    for r in rebate_rows:
-        r.setdefault("id", stable_id(r["text"], r["source"]))
 
     from dataset_mix import compose_train
     train, mix_stats = compose_train(
-        real + synth + hardneg_rows + rebate_rows,
-        eval_ids=hardneg_eval_ids | rebate_eval_ids,
+        real + synth + hardneg_rows,
+        eval_ids=hardneg_eval_ids,
         eval_texts=rebate_eval_texts,
     )
     print("v2 mix stats:")
