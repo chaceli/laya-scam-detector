@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# One-shot v2 pipeline resume: Task 13 build -> invariant check -> Task 15 train (background).
+# One-shot v2 pipeline resume: build -> invariant check -> train (background).
 # Usage: bash scripts/run_v2_pipeline.sh
-# Prereq: datasets/synthetic/rebate_scam.jsonl (run gen_rebate_synthetic.py).
-# CCL2023 is no longer required: rebate_scam comes from the template generator.
+# NOTE: superseded by scripts/run_v3_pipeline.sh (real CCL rebate). Kept for history;
+# rebate_scam no longer comes from synthetic data, so the CCL data must be present.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-REBATE_SYNTH="datasets/synthetic/rebate_scam.jsonl"
+CCL_TRAIN="datasets/raw/ccl2023/train.json"
 
-[ -f "$REBATE_SYNTH" ] || { echo "MISSING: $REBATE_SYNTH (run: python scripts/gen_rebate_synthetic.py)"; exit 2; }
+[ -f "$CCL_TRAIN" ] || { echo "MISSING: $CCL_TRAIN"; exit 2; }
 source .venv/bin/activate
 
 echo "=== Task 13: v2 dataset build (~5 min) ==="
