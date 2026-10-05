@@ -11,7 +11,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from dataset_mix import (  # noqa: E402
     CCL_NONREBATE_CAP, GEN_CAP, PER_CATEGORY_CAP, POS_FRACTION,
-    REBATE_FLOOR, TELE_POS_CAP, compose_train,
+    REBATE_FLOOR, TELE_POS_CAP, compose_train, stable_id,
 )
 
 
@@ -172,3 +172,56 @@ class TestEdgeShapes:
         assert_caps_hold(train, stats, 4000)
         rebate = sum(1 for r in train if r["category"] == "rebate_scam")
         assert rebate >= need - 1
+
+
+class TestEvalSetExclusion:
+    """评测集必须按归一化文本排除，不能只靠 id。
+
+    stable_id 把 source 一起哈希，评测行与训练行 source 不同（rebate_eval_real
+    vs syn_rebate），因此 id 匹配永远不触发 —— 只传 eval_ids 会让评测文本静默
+    混入训练，使该类召回变成自测。
+    """
+
+    LEAK = "我被人拉去做刷单返利任务，垫付了三千多"
+
+    def test_id_alone_cannot_exclude_different_source(self):
+        """锁定前提：跨 source 的同一句话，id 必然不同。"""
+        from dataset_mix import stable_id
+        assert stable_id(self.LEAK, "rebate_eval_real") != \
+            stable_id(self.LEAK, "syn_rebate")
+
+    def test_eval_text_excluded_despite_differing_id(self):
+        rows = _rebates(3000) + _negatives(2000) + [
+            mk(self.LEAK, 1, "syn_rebate", "rebate_scam")
+        ]
+        train, _ = compose_train(
+            rows, eval_ids={stable_id(self.LEAK, "rebate_eval_real")},
+            eval_texts={self.LEAK}, train_target=4000, seed=11,
+        )
+        assert self.LEAK not in {r["text"] for r in train}
+
+    def test_punctuation_and_space_variants_excluded(self):
+        """全角/空格/零宽差异不得绕过排除。"""
+        variants = [
+            "我被人拉去做刷单返利任务，垫付了三千多",
+            "我被人拉去做刷单返利任务,垫付了三千多",
+            "我被人拉去做刷单返利任务 垫付了三千多",
+            "我被人拉去做刷单返利任务，垫付了三千多 ",
+        ]
+        rows = _rebates(3000) + _negatives(2000) + [
+            mk(v, 1, "syn_rebate", "rebate_scam") for v in variants
+        ]
+        train, _ = compose_train(
+            rows, eval_ids=set(), eval_texts={variants[0]},
+            train_target=4000, seed=13,
+        )
+        from dataset_mix import _norm_text
+        kept = {_norm_text(r["text"]) for r in train}
+        assert _norm_text(variants[0]) not in kept
+
+    def test_no_eval_texts_keeps_backward_compat(self):
+        """eval_texts 缺省时行为不变（老调用方不会被打断）。"""
+        rows = _rebates(3000) + _negatives(2000)
+        train, stats = compose_train(rows, eval_ids=set(),
+                                     train_target=4000, seed=17)
+        assert_caps_hold(train, stats, 4000)

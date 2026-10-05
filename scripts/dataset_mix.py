@@ -36,6 +36,31 @@ def stable_id(text: str, source: str) -> str:
     return f"{source}-{h}"
 
 
+_HALF_PUNCT = {
+    "，": ",", "：": ":", "；": ";", "（": "(", "）": ")",
+    "！": "!", "？": "?", "【": "[", "】": "]",
+    "“": '"', "”": '"', "‘": "'", "’": "'",
+}
+_ZERO_WIDTH = dict.fromkeys(map(ord, "‌‍﻿"), None)
+_PUNCT_MAP = str.maketrans({**_HALF_PUNCT, **_ZERO_WIDTH})
+
+
+def _norm_text(text: str) -> str:
+    """归一化到"同一句话"的比较口径：去空白、去零宽字符、全角标点转半角。
+
+    排除评测集不能只比 id —— stable_id 把 source 一起哈希，评测行与训练行
+    source 不同时同一句话会得到不同 id。也不能只比原串 —— 全角/半角标点或
+    首尾空白的差异足以让同一条评测样本混入训练。
+    """
+    return "".join(text.split()).translate(_PUNCT_MAP)
+
+
+def _norm_texts(texts) -> set[str]:
+    if not texts:
+        return set()
+    return {_norm_text(t) for t in texts if isinstance(t, str) and t.strip()}
+
+
 def _sample(items: list[dict], k: int, rng: random.Random) -> list[dict]:
     if k <= 0:
         return []
@@ -45,16 +70,24 @@ def _sample(items: list[dict], k: int, rng: random.Random) -> list[dict]:
 
 
 def compose_train(rows: list[dict], eval_ids: set[str],
+                  eval_texts: set[str] | None = None,
                   train_target: int = TRAIN_TARGET, seed: int = 42,
                   ) -> tuple[list[dict], dict]:
     """按配比组装训练集。返回 (train_rows, stats)。违反硬约束即抛错。"""
     rng = random.Random(seed)
     # 入口按 id 去重：同一 id 重复出现时只保留首条，正负两侧都不会重复入池
     seen_ids: set[str] = set()
+    # 评测集同时按归一化文本排除。id 不足以承担这个职责：stable_id 哈希
+    # 进了 source，而评测行与训练行分属不同 source（rebate_eval_real vs
+    # syn_rebate），同文本也会得到不同 id —— 只比对 id 会让评测文本静默
+    # 混入训练集，使该类召回变成自测。
+    eval_keys = _norm_texts(eval_texts)
     pool: list[dict] = []
     for r in rows:
         rid = r.get("id")
         if rid in eval_ids or rid in seen_ids:
+            continue
+        if eval_keys and _norm_text(r.get("text", "")) in eval_keys:
             continue
         seen_ids.add(rid)
         pool.append(r)
