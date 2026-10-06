@@ -34,7 +34,7 @@ short_description: 中英诈骗话术风险检测，模型完全在浏览器内�
 ## 首次加载
 
 首次访问需下载约 **681 MB** 的 fp16 模型（从
-[🤗 LiChace/laya-scam-detector-onnx](https://huggingface.co/LiChace/laya-scam-detector-onnx) 拉取）。
+[🤗 LiChace/laya-scam-detector-onnx-v3](https://huggingface.co/LiChace/laya-scam-detector-onnx-v3) 拉取）。
 浏览器会缓存，之后打开即用。
 
 ## 模型能力（600 条中文 holdout）

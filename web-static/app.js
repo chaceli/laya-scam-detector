@@ -9,7 +9,7 @@
 // matches native to ~1e-5. Overridable from index.html (window.__MODEL_BASE)
 // to self-host the weights.
 const MODEL_BASE = window.__MODEL_BASE
-  || "https://huggingface.co/LiChace/laya-scam-detector-onnx/resolve/main";
+  || "https://huggingface.co/LiChace/laya-scam-detector-onnx-v3/resolve/main";
 const ORT_URL = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.0/dist/ort.wasm.min.mjs";
 const TRANSFORMERS_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6";
 
@@ -47,6 +47,7 @@ const SCHEMA = {
       investment_scam: "fake returns, stock tips, Ponzi scheme",
       lottery_scam: "fake prize, lucky draw, congratulations winner",
       job_scam: "fake job offer, upfront fee, mule recruitment",
+      rebate_scam: "order-brushing rebate fraud, task-based commission scam, upfront deposit",
       loan_scam: "fake loan offer, predatory lending",
       impersonation: "fake police, government, bank, customer service",
       romance_scam: "pig butchering, emotional manipulation, long game",
