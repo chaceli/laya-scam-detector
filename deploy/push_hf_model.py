@@ -5,6 +5,10 @@ Model repositories are free for public models (unlike compute Spaces).
 Usage:
   HF_TOKEN=hf_xxx .venv/bin/python deploy/push_hf_model.py \
       --repo-id <user>/laya-scam-detector-onnx [--private]
+  # v3 bundle:
+  HF_TOKEN=hf_xxx .venv/bin/python deploy/push_hf_model.py \
+      --repo-id <user>/laya-scam-detector-onnx-v3 \
+      --model-dir models/laya-onnx-multilingual-finetuned-v3-fp16
 """
 import argparse
 import os
@@ -14,7 +18,7 @@ import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MODEL_DIR = REPO_ROOT / "models" / "laya-onnx-multilingual-finetuned-fp16"
+DEFAULT_MODEL_DIR = REPO_ROOT / "models" / "laya-onnx-multilingual-finetuned-fp16"
 MODEL_CARD = REPO_ROOT / "deploy" / "model-card-README.md"
 
 INCLUDE = [
@@ -29,18 +33,21 @@ INCLUDE = [
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo-id", required=True)
+    ap.add_argument("--model-dir", default=str(DEFAULT_MODEL_DIR),
+                    help="fp16 bundle dir to upload (default: v1 fp16)")
     ap.add_argument("--private", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    if not (MODEL_DIR / "model.onnx").exists():
-        print(f"✗ {MODEL_DIR}/model.onnx not found — run scripts/quantize_onnx_fp16.py")
+    model_dir = Path(args.model_dir)
+    if not (model_dir / "model.onnx").exists():
+        print(f"✗ {model_dir}/model.onnx not found — run scripts/quantize_onnx_fp16.py")
         return 1
 
     tmp = Path(tempfile.mkdtemp(prefix="laya-hf-model-"))
     total = 0
     for rel in INCLUDE:
-        src = MODEL_DIR / rel
+        src = model_dir / rel
         if not src.exists():
             print(f"  ⚠ missing {rel}")
             continue
@@ -51,7 +58,7 @@ def main() -> int:
         print(f"  + {rel}  ({src.stat().st_size/1e6:.1f} MB)")
     shutil.copy(MODEL_CARD, tmp / "README.md")
     print(f"  + README.md (model card)")
-    print(f"  total: {total/1e6:.0f} MB")
+    print(f"  total: {total/1e6:.0f} MB  (from {model_dir})")
 
     if args.dry_run:
         print(f"\n(dry run) staged at {tmp}")
